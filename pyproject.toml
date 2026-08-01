@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quarries"
+version = "0.4.3"
+description = "Personal encrypted archive with deterministic Hebrew-script encoding, embeddings, and a local AI confidant."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "textual>=0.89",
+  "cryptography>=42.0",
+  "argon2-cffi>=23.1",
+  "httpx>=0.27"
+]
+
+[project.scripts]
+quarries = "quarries.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["quarries"]
