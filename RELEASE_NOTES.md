@@ -1,4 +1,4 @@
-# Quarries v0.8.0
+# Quarries v0.8.1
 
 Release-ready documentation and installation packaging.
 
@@ -32,3 +32,12 @@ Release-ready documentation and installation packaging.
 - Added source-page provenance.
 - Added local related-concept recommendations.
 - Added source gematria-method reference view.
+
+
+## v0.8.1
+- Added plain-English number-structure explanation for dictionary values.
+- Added digit-reduction chains and prime factorization.
+- Added 19 supported gematria methods/transforms.
+- Added live Hebrew multi-method calculation.
+- Added CSV export for all method results.
+- Marked spelling-dependent Shemi/Ne'elam calculations explicitly.

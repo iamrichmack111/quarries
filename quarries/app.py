@@ -52,7 +52,7 @@ from .ollama_client import (
     embed as ollama_embed,
 )
 from .hebrew_lexicon import HebrewLexicon
-from .gematria import mispar_gadol, breakdown
+from .gematria import mispar_gadol, breakdown, method_results, number_explanation, factorization_text, reduction_chain
 from .observatory import HOUSE_SYSTEMS, SIDEREAL_MODES, calculate_chart, format_chart
 from .storage import Store
 from .torahcalc_reference import TorahCalcReference
@@ -924,6 +924,8 @@ class GematriaDictionaryPane(Static):
         self.ref: TorahCalcReference | None = None
         self.current_id: int | None = None
         self.current_value: int | None = None
+        self.last_method_rows: list[dict[str, object]] = []
+        self.last_hebrew_input: str = ""
 
     def compose(self) -> ComposeResult:
         with Vertical(id="gemdict-root"):
@@ -933,7 +935,7 @@ class GematriaDictionaryPane(Static):
             )
             with Horizontal(id="gemdict-toolbar"):
                 yield Input(
-                    placeholder="Enter a number, e.g. 73",
+                    placeholder="Enter a number, e.g. 408",
                     id="gemdict-value",
                 )
                 yield Input(
@@ -942,6 +944,14 @@ class GematriaDictionaryPane(Static):
                 )
                 yield Button("Methods", id="gemdict-methods")
                 yield Static("Local structured reference", id="gemdict-status")
+            with Horizontal(id="gemdict-calc-toolbar"):
+                yield Input(
+                    placeholder="Paste/type Hebrew to calculate all supported methods",
+                    id="gemdict-hebrew",
+                )
+                yield Button("Calculate All", id="gemdict-calc-all")
+                yield Button("Export Methods CSV", id="gemdict-export-methods")
+                yield Static("Hechrachi • Gadol • Siduri • Katan • Perati • Shemi • transforms…", id="gemdict-calc-status")
             with Horizontal(id="gemdict-layout"):
                 with Vertical(id="gemdict-results-pane", classes="pane"):
                     yield Static("VALUE / SEARCH RESULTS", classes="pane-title")
@@ -995,7 +1005,9 @@ class GematriaDictionaryPane(Static):
             return
         self.current_id=int(row["id"])
         self.current_value=int(row["value"])
-        self.query_one("#gemdict-detail", Static).update(self.ref.format_hit(row))
+        self.query_one("#gemdict-detail", Static).update(
+            number_explanation(int(row["value"])) + "\n\n" + self.ref.format_hit(row)
+        )
         related=self.query_one("#gemdict-related", ListView)
         related.clear()
         for r,score in self.ref.related(self.current_id, limit=12):
@@ -1066,6 +1078,78 @@ class GematriaDictionaryPane(Static):
         ).fetchone()
         if row:
             self._show_row(row)
+
+    def _calculate_all_methods(self, text: str) -> None:
+        rows=method_results(text)
+        self.last_hebrew_input=text
+        self.last_method_rows=rows
+        if not rows:
+            self.query_one("#gemdict-calc-status", Static).update("No Hebrew letters detected.")
+            return
+        lines=[
+            f"[b]ALL GEMATRIA METHODS[/b]  Hebrew: {text}",
+            "",
+            "Spelling-dependent methods (Shemi / Ne'elam) use the exact letter-name spellings shown in the source chart.",
+            "",
+        ]
+        for row in rows:
+            transformed=f"  → {row['transformed']}" if row.get("transformed") else ""
+            lines.append(
+                f"[b]{row['method']}[/b] {row['hebrew_name']} = [b]{row['value']}[/b]{transformed}\\n"
+                f"[dim]{row['rule']}[/]"
+            )
+        self.query_one("#gemdict-detail", Static).update("\\n\\n".join(lines))
+        self.query_one("#gemdict-related", ListView).clear()
+        self.query_one("#gemdict-calc-status", Static).update(
+            f"{len(rows)} methods calculated • ready to export"
+        )
+
+    @on(Input.Changed, "#gemdict-hebrew")
+    def gemdict_hebrew_changed(self, event: Input.Changed) -> None:
+        value=event.value.strip()
+        if not value:
+            self.last_hebrew_input=""
+            self.last_method_rows=[]
+            self.query_one("#gemdict-calc-status", Static).update(
+                "Paste Hebrew to calculate all supported methods."
+            )
+            return
+        self._calculate_all_methods(value)
+
+    @on(Button.Pressed, "#gemdict-calc-all")
+    def calculate_all_methods_button(self) -> None:
+        self._calculate_all_methods(self.query_one("#gemdict-hebrew", Input).value.strip())
+
+    @on(Button.Pressed, "#gemdict-export-methods")
+    def export_method_results(self) -> None:
+        if not self.last_method_rows:
+            self.query_one("#gemdict-calc-status", Static).update(
+                "Calculate a Hebrew word or phrase before exporting."
+            )
+            return
+        downloads=Path.home()/"Downloads"
+        downloads.mkdir(parents=True,exist_ok=True)
+        out=downloads/f"quarries-gematria-methods-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+        with out.open("w",encoding="utf-8-sig",newline="") as fh:
+            fields=["input","method","hebrew_name","value","rule","transformed"]
+            writer=csv.DictWriter(fh,fieldnames=fields)
+            writer.writeheader()
+            for row in self.last_method_rows:
+                writer.writerow({
+                    "input":self.last_hebrew_input,
+                    "method":row["method"],
+                    "hebrew_name":row["hebrew_name"],
+                    "value":row["value"],
+                    "rule":row["rule"],
+                    "transformed":row.get("transformed",""),
+                })
+        try:
+            os.chmod(out,0o600)
+        except OSError:
+            pass
+        self.query_one("#gemdict-calc-status", Static).update(
+            f"Exported {len(self.last_method_rows)} method calculations to {out}"
+        )
 
     @on(Button.Pressed, "#gemdict-methods")
     def show_methods(self) -> None:

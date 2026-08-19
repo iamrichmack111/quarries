@@ -20,5 +20,5 @@ def test_concept_search_and_related():
 def test_ui_has_gematria_dictionary_tab():
     text=(Path(__file__).parents[1]/"quarries"/"app.py").read_text()
     assert 'TabPane("Gematria Dictionary"' in text
-    assert 'placeholder="Enter a number, e.g. 73"' in text
+    assert 'placeholder="Enter a number, e.g. 408"' in text
     assert "RELATED CONCEPTS" in text

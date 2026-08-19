@@ -1,4 +1,4 @@
-# Quarries v0.8.0
+# Quarries v0.8.1
 
 **The Archive remembers. The Watcher listens. You decide what is revealed.**
 
@@ -175,3 +175,10 @@ Quarries now bundles a structured local reference derived from the user-supplied
 - Exact numeric lookup is kept separate from recommendations so a similarity result can never replace the source's value assignment.
 
 The reference is stored read-only as `quarries/data/torahcalc.db`. The original PDF is not required at runtime.
+
+
+## Number structure + multi-method gematria (v0.8.1)
+
+The Gematria Dictionary now explains the arithmetic metadata printed by the source. For example, `408 → 12 → 3` is repeated decimal digit reduction, while `408 = 2^3 × 3 × 17` is prime factorization: the unique prime-number building blocks of 408. Factorization is displayed as mathematical structure, not treated as another gematria system.
+
+The Dictionary tab also has a Hebrew multi-method calculator with live results and CSV export. Supported calculations include Mispar Hechrachi, Gadol, Siduri, Katan, Perati, Shemi, Musafi, Bone'eh, Kidmi, Ne'elam, Meshulash, Ha'achor, Katan Mispari, Kolel, AtBash, Albam, Ofanim, Avgad, and Reverse Avgad. Shemi and Ne'elam use the explicit letter-name spellings from the source chart and are labeled as spelling-dependent.
