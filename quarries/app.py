@@ -52,7 +52,7 @@ from .ollama_client import (
     embed as ollama_embed,
 )
 from .hebrew_lexicon import HebrewLexicon
-from .gematria import mispar_gadol, breakdown, method_results, number_explanation, factorization_text, reduction_chain
+from .gematria import mispar_gadol, breakdown, method_results, number_explanation, factorization_text, reduction_chain, hebrew_numeral
 from .observatory import HOUSE_SYSTEMS, SIDEREAL_MODES, calculate_chart, format_chart
 from .storage import Store
 from .torahcalc_reference import TorahCalcReference
@@ -249,6 +249,7 @@ class MainScreen(Screen):
         ("f6", "copy_hebrew", "Copy Hebrew"),
         ("f7", "copy_grouped_hebrew", "Copy 3-4-5"),
         ("f8", "copy_watcher_response", "Copy Watcher"),
+        ("f9", "save_gematria", "Save Gematria"),
         ("ctrl+q", "quit_app", "Quit"),
     ]
 
@@ -288,8 +289,13 @@ class MainScreen(Screen):
         self.query_one(ArchivePane).preserve()
 
     def action_copy_hebrew(self) -> None:
-        pane = self.query_one(ArchivePane)
-        pane.copy_normal_hebrew()
+        tabs = self.query_one(TabbedContent)
+        if tabs.active == "hebrew-tab":
+            self.query_one(HebrewPane).copy_current_hebrew()
+        elif tabs.active == "gematria-dict-tab":
+            self.query_one(GematriaDictionaryPane).copy_current_hebrew()
+        else:
+            self.query_one(ArchivePane).copy_normal_hebrew()
 
     def action_copy_grouped_hebrew(self) -> None:
         pane = self.query_one(ArchivePane)
@@ -297,6 +303,13 @@ class MainScreen(Screen):
 
     def action_copy_watcher_response(self) -> None:
         self.query_one(WatcherPane).copy_last_response()
+
+    def action_save_gematria(self) -> None:
+        tabs=self.query_one(TabbedContent)
+        if tabs.active == "gematria-dict-tab":
+            self.query_one(GematriaDictionaryPane).save_current()
+        elif tabs.active == "hebrew-tab":
+            self.query_one(HebrewPane).export_current_methods()
 
     def action_quit_app(self) -> None:
         self.app.exit()
@@ -667,6 +680,8 @@ class HebrewPane(Static):
                     id="hebrew-search",
                 )
                 yield Button("Save Word", id="hebrew-save-word")
+                yield Button("Copy Hebrew [F6]", id="hebrew-copy-current")
+                yield Button("Export Methods CSV", id="hebrew-export-methods")
                 yield Button("Send Entry to Watcher", id="hebrew-to-watcher")
                 yield Static("Local lexicon", id="hebrew-status")
             with Horizontal(id="hebrew-layout"):
@@ -758,6 +773,22 @@ class HebrewPane(Static):
             f"[b]Mispar Gadol: {total}[/b]\n{breakdown(value)}"
         )
 
+    @on(Button.Pressed, "#hebrew-copy-current")
+    def copy_current_hebrew(self) -> None:
+        if self.lexicon is None or self.current_word_id is None:
+            self.query_one("#hebrew-status", Static).update("Select a Strong's entry first.")
+            return
+        row = self.lexicon.get_word(self.current_word_id)
+        hebrew = (row["hebrew"] or row["lemma"] or "") if row else ""
+        if not hebrew:
+            self.query_one("#hebrew-status", Static).update("Selected entry has no Hebrew text to copy.")
+            return
+        try:
+            copy_text(hebrew)
+            self.query_one("#hebrew-status", Static).update(f"Copied Hebrew to clipboard: {hebrew}")
+        except ClipboardError as exc:
+            self.query_one("#hebrew-status", Static).update(str(exc))
+
     @on(Button.Pressed, "#hebrew-save-word")
     def save_current_word(self) -> None:
         if self.lexicon is None or self.current_word_id is None:
@@ -822,6 +853,30 @@ class HebrewPane(Static):
         self.query_one("#hebrew-list-status", Static).update(
             f"Exported {len(rows)} saved word(s) to {out}"
         )
+
+    @on(Button.Pressed, "#hebrew-export-methods")
+    def export_current_methods(self) -> None:
+        if self.lexicon is None or self.current_word_id is None:
+            self.query_one("#hebrew-status", Static).update("Select a Strong's entry first.")
+            return
+        row=self.lexicon.get_word(self.current_word_id)
+        heb=(row["hebrew"] or row["lemma"] or "") if row else ""
+        rows=method_results(heb)
+        if not rows:
+            self.query_one("#hebrew-status", Static).update("Selected entry has no Hebrew letters to calculate.")
+            return
+        downloads=Path.home()/"Downloads"; downloads.mkdir(parents=True,exist_ok=True)
+        sid=(row["strong_id"] or "entry").replace("/","-")
+        out=downloads/f"quarries-{sid}-gematria-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+        with out.open("w",encoding="utf-8-sig",newline="") as fh:
+            fields=["strong_id","hebrew","gloss","hebrew_numeral","method","hebrew_name","value","rule","transformed"]
+            writer=csv.DictWriter(fh,fieldnames=fields); writer.writeheader()
+            for item in rows:
+                writer.writerow({"strong_id":row["strong_id"] or "","hebrew":heb,"gloss":row["gloss"] or "",
+                    "hebrew_numeral":hebrew_numeral(int(item["value"])),**item})
+        try: os.chmod(out,0o600)
+        except OSError: pass
+        self.query_one("#hebrew-status", Static).update(f"Exported {len(rows)} methods to {out}")
 
     @on(Input.Changed, "#hebrew-search")
     def search_changed(self, event: Input.Changed) -> None:
@@ -1088,6 +1143,7 @@ class GematriaDictionaryPane(Static):
             return
         lines=[
             f"[b]ALL GEMATRIA METHODS[/b]  Hebrew: {text}",
+            f"Standard number as Hebrew numeral: {hebrew_numeral(int(rows[0]['value']))}",
             "",
             "Spelling-dependent methods (Shemi / Ne'elam) use the exact letter-name spellings shown in the source chart.",
             "",
@@ -1095,10 +1151,10 @@ class GematriaDictionaryPane(Static):
         for row in rows:
             transformed=f"  → {row['transformed']}" if row.get("transformed") else ""
             lines.append(
-                f"[b]{row['method']}[/b] {row['hebrew_name']} = [b]{row['value']}[/b]{transformed}\\n"
+                f"[b]{row['method']}[/b] {row['hebrew_name']} = [b]{row['value']}[/b]{transformed}\n"
                 f"[dim]{row['rule']}[/]"
             )
-        self.query_one("#gemdict-detail", Static).update("\\n\\n".join(lines))
+        self.query_one("#gemdict-detail", Static).update("\n\n".join(lines))
         self.query_one("#gemdict-related", ListView).clear()
         self.query_one("#gemdict-calc-status", Static).update(
             f"{len(rows)} methods calculated • ready to export"
@@ -1150,6 +1206,37 @@ class GematriaDictionaryPane(Static):
         self.query_one("#gemdict-calc-status", Static).update(
             f"Exported {len(self.last_method_rows)} method calculations to {out}"
         )
+
+    def copy_current_hebrew(self) -> None:
+        text = self.last_hebrew_input.strip()
+        if not text and self.current_value is not None:
+            text = hebrew_numeral(int(self.current_value))
+        if not text:
+            self.query_one("#gemdict-status", Static).update("Enter Hebrew or select a dictionary value first.")
+            return
+        try:
+            copy_text(text)
+            self.query_one("#gemdict-status", Static).update(f"Copied to clipboard: {text}")
+        except ClipboardError as exc:
+            self.query_one("#gemdict-status", Static).update(str(exc))
+
+    def save_current(self) -> None:
+        """F9 save: export calculations when present, otherwise save selected dictionary text."""
+        if self.last_method_rows:
+            self.export_method_results()
+            return
+        if self.ref is None or self.current_id is None:
+            self.query_one("#gemdict-status", Static).update("Nothing to save yet. Select a value or calculate Hebrew first.")
+            return
+        row=self.ref.conn.execute("SELECT id,value,source_page,body FROM value_sections WHERE id=?",(self.current_id,)).fetchone()
+        if row is None: return
+        downloads=Path.home()/"Downloads"; downloads.mkdir(parents=True,exist_ok=True)
+        out=downloads/f"quarries-gematria-{row['value']}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
+        text=f"Gematria value: {row['value']}\nHebrew numeral: {hebrew_numeral(int(row['value']))}\nSource page: {row['source_page']}\n\n{row['body']}\n"
+        out.write_text(text,encoding="utf-8")
+        try: os.chmod(out,0o600)
+        except OSError: pass
+        self.query_one("#gemdict-status", Static).update(f"Saved dictionary result to {out}")
 
     @on(Button.Pressed, "#gemdict-methods")
     def show_methods(self) -> None:

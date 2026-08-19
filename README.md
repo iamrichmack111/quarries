@@ -1,4 +1,15 @@
-# Quarries v0.8.1
+# Quarries v0.8.4
+
+![Quarries logo](assets/quarries-logo.png)
+
+## v0.8.4 highlights
+
+- Added a Hebrew-inspired terminal-safe eye logo to `man quarries`; the full graphical logo remains bundled at `assets/quarries-logo.png` and is used by the macOS app.
+- **F6 is now context-aware:** on Hebrew / Strong's it copies the selected Hebrew lemma; on Gematria Dictionary it copies the current Hebrew calculation input or the selected value as Hebrew numerals; on Archive it retains the existing Hebrew-substitution copy behavior.
+- Hebrew / Strong's now includes a visible **Copy Hebrew [F6]** action.
+- The release includes a **Quarries.app** macOS launcher using the new Hebrew-focused Quarries logo. The TUI still runs in Terminal, but it can now be launched like a normal Mac application after installation.
+- The installer installs the CLI, man page, and on macOS the application bundle.
+- Upgrades preserve the personal database at `~/.local/share/quarries/archive.qry`; the release ZIP does **not** contain your personal Archive database.
 
 **The Archive remembers. The Watcher listens. You decide what is revealed.**
 
@@ -72,6 +83,8 @@ The primary Quarries SQLite database is stored under:
 ~/.local/share/quarries/archive.qry
 ```
 
+This file lives outside the application/release directory. Installing a new Quarries release or sharing the release ZIP does not copy, reset, or delete your personal database. A recipient starts with their own new local database on first run.
+
 Back up the Archive before major upgrades:
 
 ```bash
@@ -99,13 +112,15 @@ chmod +x install.sh
 ./install.sh
 ```
 
-The installer creates an isolated virtual environment, installs Quarries, places a global launcher in `/usr/local/bin` when possible, installs the `quarries(1)` man page, and falls back to `~/.local/bin` if system installation is unavailable.
+The installer creates an isolated virtual environment, installs Quarries, places a global launcher in `/usr/local/bin` when possible, installs the `quarries(1)` man page, and falls back to `~/.local/bin` if system installation is unavailable. On macOS it also installs `Quarries.app` into `/Applications` when possible (or `~/Applications` as a fallback). The app opens the Quarries TUI in Terminal and uses the bundled Quarries logo as its application icon.
 
 Launch from any directory:
 
 ```bash
 quarries
 ```
+
+On macOS you can also launch **Quarries** from Finder, Spotlight, or Launchpad after running `install.sh`.
 
 Read the manual:
 
@@ -124,7 +139,7 @@ On modern macOS, `/bin` is protected by System Integrity Protection and is reser
 | `Ctrl+L` | Lock all modules |
 | `Ctrl+N` | New Leaf |
 | `Ctrl+S` | Preserve Leaf |
-| `F6` | Copy Hebrew substitution |
+| `F6` | Copy Hebrew for the active workspace (Strong's lemma / Gematria input or numeral / Archive substitution) |
 | `F7` | Copy RTL 3-4-5 |
 | `F8` | Copy latest Watcher response |
 | `Ctrl+Q` | Quit |

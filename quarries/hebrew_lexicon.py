@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from .gematria import breakdown, mispar_gadol
+from .gematria import breakdown, mispar_gadol, method_results, hebrew_numeral
 
 LEXICON_PATH = Path(__file__).with_name("data") / "hebrew.db"
 
@@ -128,10 +128,37 @@ class HebrewLexicon:
         scored.sort(key=lambda pair: (-pair[0], pair[1]["entry_no"] or 999999))
         return [row for _, row in scored[:limit]]
 
-    @staticmethod
-    def format_word(row: sqlite3.Row) -> str:
+    def gematria_matches(self, value: int, gloss: str = "", limit: int = 8):
+        """Find lexicon entries with the same standard gematria, gloss-ranked locally."""
+        q = normalize_latin(gloss)
+        matches=[]
+        for row in self.conn.execute("SELECT * FROM words ORDER BY entry_no"):
+            heb=row["hebrew"] or row["lemma"] or ""
+            # Dictionary number correspondence uses standard/non-final values.
+            from .gematria import mispar_hechrachi
+            if mispar_hechrachi(heb) != value:
+                continue
+            hay=normalize_latin(" ".join([row["gloss"] or "", row["definitions"] or "", row["transliteration"] or ""]))
+            score=_ratio(q, hay) if q else 0.0
+            if q and q in hay:
+                score += 100.0
+            matches.append((score,row))
+        matches.sort(key=lambda x:(-x[0], x[1]["entry_no"] or 999999))
+        return [row for _,row in matches[:limit]]
+
+    def format_word(self, row: sqlite3.Row) -> str:
         if row is None:
             return "No lexical entry selected."
+        heb=row['hebrew'] or row['lemma'] or ''
+        methods=method_results(heb)
+        method_lines=[]
+        for item in methods:
+            xform=f" → {item['transformed']}" if item.get('transformed') else ""
+            method_lines.append(f"{item['method']} {item['hebrew_name']} = {item['value']}{xform}\n  {item['rule']}")
+        standard=next((int(x['value']) for x in methods if x['method']=='Mispar Hechrachi'),0)
+        matches=self.gematria_matches(standard, row['gloss'] or row['definitions'] or '', limit=6) if standard else []
+        match_lines=[f"{m['strong_id'] or '—'}  {m['hebrew'] or m['lemma'] or '—'} — {(m['gloss'] or m['definitions'] or '—').splitlines()[0][:90]}" for m in matches if m['id'] != row['id']]
+        extra=("\n".join(match_lines) if match_lines else "No other gloss-ranked Strong's matches at this exact standard value.")
         return (
             f"[b]{row['lemma'] or row['hebrew'] or '—'}[/b]\n\n"
             f"Strong's: {row['strong_id'] or '—'}\n"
@@ -141,10 +168,13 @@ class HebrewLexicon:
             f"Morphology: {row['morphology'] or '—'}\n"
             f"Language: {row['language'] or '—'}\n\n"
             f"[b]Hebrew Fuzzy gloss[/b]\n{row['gloss'] or '—'}\n\n"
-            f"[b]Mispar Gadol — Hebrew attached to this gloss[/b]\n"
-            f"Hebrew: {row['hebrew'] or row['lemma'] or '—'}\n"
-            f"Value: {mispar_gadol(row['hebrew'] or row['lemma'] or '')}\n"
-            f"Breakdown: {breakdown(row['hebrew'] or row['lemma'] or '')}\n\n"
+            f"[b]Gematria — Hebrew attached to this gloss[/b]\n"
+            f"Hebrew: {heb or '—'}\n"
+            f"Standard value: {standard}  •  Hebrew numeral: {hebrew_numeral(standard)}\n"
+            f"Mispar Gadol: {mispar_gadol(heb)}\n"
+            f"Breakdown: {breakdown(heb)}\n\n"
+            f"[b]ALL GEMATRIA METHODS ({len(methods)})[/b]\n" + "\n\n".join(method_lines) + "\n\n"
+            f"[b]Same-value Hebrew entries — ranked against this gloss[/b]\n{extra}\n\n"
             f"[b]Hebrew Fuzzy definitions — preserved[/b]\n{row['definitions'] or '—'}\n\n"
             f"[b]Lexicon / custom notes — preserved[/b]\n{row['notes'] or '—'}\n\n"
             "[dim]Lexical glosses are study aids; verse context and morphology determine translation.[/]"

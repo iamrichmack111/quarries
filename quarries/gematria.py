@@ -149,6 +149,48 @@ def method_results(text: str) -> list[dict[str,object]]:
         for name,heb,value,rule,xform in rows
     ]
 
+
+def hebrew_numeral(n: int) -> str:
+    """Render a positive integer with conventional Hebrew numeral letters.
+
+    Thousands are separated with a geresh; 15/16 use ט״ו/ט״ז to avoid
+    spelling divine names. This is a numeral representation, not a gloss.
+    """
+    if n <= 0:
+        return "—"
+    ones = [(9,"ט"),(8,"ח"),(7,"ז"),(6,"ו"),(5,"ה"),(4,"ד"),(3,"ג"),(2,"ב"),(1,"א")]
+    tens = [(90,"צ"),(80,"פ"),(70,"ע"),(60,"ס"),(50,"נ"),(40,"מ"),(30,"ל"),(20,"כ"),(10,"י")]
+    hundreds = [(400,"ת"),(300,"ש"),(200,"ר"),(100,"ק")]
+
+    def under_1000(value: int) -> str:
+        letters=[]
+        while value >= 400:
+            letters.append("ת"); value -= 400
+        for amount, letter in hundreds[1:]:
+            if value >= amount:
+                letters.append(letter); value -= amount
+        if value == 15:
+            letters += ["ט","ו"]; value = 0
+        elif value == 16:
+            letters += ["ט","ז"]; value = 0
+        else:
+            for amount, letter in tens:
+                if value >= amount:
+                    letters.append(letter); value -= amount
+            for amount, letter in ones:
+                if value >= amount:
+                    letters.append(letter); value -= amount
+        if not letters:
+            return ""
+        return letters[0] + "׳" if len(letters)==1 else "".join(letters[:-1]) + "״" + letters[-1]
+
+    if n < 1000:
+        return under_1000(n)
+    thousands, rest = divmod(n, 1000)
+    prefix = under_1000(thousands).replace("״", "").replace("׳", "") + "׳"
+    return prefix + (" " + under_1000(rest) if rest else "")
+
+
 def prime_factorization(n: int) -> list[tuple[int,int]]:
     if n < 2:
         return []

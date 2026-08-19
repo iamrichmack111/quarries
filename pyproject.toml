@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quarries"
-version = "0.8.1"
+version = "0.8.4"
 description = "Private encrypted research workspace with local AI, Hebrew and Strongs study, Mispar Gadol, semantic retrieval, and Swiss Ephemeris charts."
 readme = "README.md"
 requires-python = ">=3.10"

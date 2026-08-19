@@ -1,6 +1,20 @@
-.TH QUARRIES 1 "August 2026" "Quarries 0.8.0" "User Commands"
+.TH QUARRIES 1 "August 2026" "Quarries 0.8.4" "User Commands"
 .SH NAME
 quarries \- private encrypted research workspace with local AI, Hebrew lexical study, gematria, and ephemeris tools
+.SH BRANDING
+.nf
+                 /\\                         /\\
+                /  \\       עין  עין       /  \\
+               <   (o)                   (o)   >
+                \\__/       מחצבות        \\__/
+
+                  Q U A R R I E S
+               SEE  DECODE  UNCOVER
+.fi
+.PP
+The graphical Quarries logo is distributed with the application as
+.I assets/quarries-logo.png
+and is used by the macOS application icon. The fixed-width mark above is the terminal-safe man-page rendition.
 .SH SYNOPSIS
 .B quarries
 .SH DESCRIPTION
@@ -31,7 +45,7 @@ Semantic retrieval uses
 .B embeddinggemma
 and stores model/dimension/index metadata with each chunk.
 .SH HEBREW
-The Hebrew / Strong's module bundles 8,674 lexical entries and preserves custom glosses, definitions, and notes. Saved words can be exported as CSV.
+The Hebrew / Strong's module bundles 8,674 lexical entries and preserves custom glosses, definitions, and notes. Saved words can be exported as CSV. The selected Hebrew lemma can be copied directly to the system clipboard.
 .SH GEMATRIA
 Mispar Gadol calculates live while Hebrew is typed or pasted. Niqqud/cantillation are ignored. Final forms use extended values: ך=500, ם=600, ן=700, ף=800, ץ=900.
 .SH OBSERVATORY
@@ -48,7 +62,7 @@ New Leaf.
 Preserve Leaf.
 .TP
 .B F6
-Copy Hebrew substitution.
+Copy Hebrew for the active workspace. In Hebrew / Strong's this copies the selected Hebrew lemma; in Gematria Dictionary it copies the current Hebrew input or selected value as Hebrew numerals; in Archive it copies the Hebrew substitution.
 .TP
 .B F7
 Copy RTL 3-4-5.
@@ -56,12 +70,15 @@ Copy RTL 3-4-5.
 .B F8
 Copy latest Watcher response.
 .TP
+.B F9
+Save/export the active gematria result.
+.TP
 .B Ctrl+Q
 Quit.
 .SH FILES
 .TP
 .I ~/.local/share/quarries/archive.qry
-Primary Quarries database.
+Primary Quarries database. This personal database is stored outside the application bundle and release directory, so normal upgrades do not delete it and release ZIP files do not include it.
 .TP
 .I ~/Downloads/quarries-hebrew-study-*.csv
 Hebrew study exports.
@@ -79,6 +96,7 @@ The installer prefers
 .I /usr/local/bin/quarries
 and installs this manual under
 .I /usr/local/share/man/man1/quarries.1 .
+On macOS it also installs the Quarries.app launcher into /Applications when possible, with ~/Applications as a fallback.
 .SH PRIVACY
 Do not commit private Archive databases, exports, passwords, or personal records.
 

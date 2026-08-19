@@ -6,6 +6,8 @@ VENV="$ROOT/.venv"
 SYSTEM_BIN="/usr/local/bin"
 SYSTEM_MAN="/usr/local/share/man/man1"
 USER_BIN="$HOME/.local/bin"
+MAC_APP_SOURCE="$ROOT/Quarries.app"
+MAC_APP_DEST=""
 
 python3 -m venv "$VENV"
 "$VENV/bin/python" -m pip install --upgrade pip
@@ -43,9 +45,29 @@ if [[ -f "$ROOT/man/quarries.1" ]]; then
   fi
 fi
 
+if [[ "$(uname -s)" == "Darwin" && -d "$MAC_APP_SOURCE" ]]; then
+  if [[ -d "/Applications" && -w "/Applications" ]]; then
+    rm -rf "/Applications/Quarries.app"
+    cp -R "$MAC_APP_SOURCE" "/Applications/Quarries.app"
+    MAC_APP_DEST="/Applications/Quarries.app"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo rm -rf "/Applications/Quarries.app"
+    sudo cp -R "$MAC_APP_SOURCE" "/Applications/Quarries.app"
+    MAC_APP_DEST="/Applications/Quarries.app"
+  else
+    mkdir -p "$HOME/Applications"
+    rm -rf "$HOME/Applications/Quarries.app"
+    cp -R "$MAC_APP_SOURCE" "$HOME/Applications/Quarries.app"
+    MAC_APP_DEST="$HOME/Applications/Quarries.app"
+  fi
+fi
+
 echo
 echo "Quarries installed."
 echo "Launcher: $BIN_DEST"
+if [[ -n "$MAC_APP_DEST" ]]; then
+  echo "macOS app: $MAC_APP_DEST"
+fi
 echo
 echo "Install Ollama models:"
 echo "  ollama pull huihui_ai/qwen3.5-abliterated:4b"
@@ -56,3 +78,7 @@ echo "Run from anywhere:"
 echo "  quarries"
 echo "Manual:"
 echo "  man quarries"
+echo
+echo "Your personal database is preserved at:"
+echo "  $HOME/.local/share/quarries/archive.qry"
+echo "Installing or upgrading Quarries does not delete it."
