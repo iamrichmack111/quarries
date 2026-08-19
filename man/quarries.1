@@ -1,0 +1,83 @@
+.TH QUARRIES 1 "August 2026" "Quarries 0.7.3" "User Commands"
+.SH NAME
+quarries \- private encrypted research workspace with local AI, Hebrew lexical study, gematria, and ephemeris tools
+.SH SYNOPSIS
+.B quarries
+.SH DESCRIPTION
+.B Quarries
+is a Textual terminal research environment combining an encrypted Archive, local semantic retrieval, a separately locked local AI Watcher, Hebrew/Strong's lexical research, Mispar Gadol gematria, saved Hebrew study lists, and a Swiss Ephemeris Observatory.
+.PP
+The Observatory performs deterministic local chart calculations and is intentionally not sent to the Watcher.
+.SH SECURITY
+Quarries uses three independent password gates: application, Archive, and Watcher.
+.B Ctrl+L
+or
+.B Lock All
+clears active keys from memory and returns to the application gate.
+.SH ARCHIVE
+Encrypted Leaves, search/editing, Hebrew-letter substitution, encrypted embeddings, semantic retrieval, and password-encrypted exports.
+.SH WATCHER
+Normal chat model:
+.nf
+huihui_ai/qwen3.5-abliterated:4b
+.fi
+.PP
+Reference-context model:
+.nf
+gemma3:4b
+.fi
+.SH EMBEDDINGS
+Semantic retrieval uses
+.B embeddinggemma
+and stores model/dimension/index metadata with each chunk.
+.SH HEBREW
+The Hebrew / Strong's module bundles 8,674 lexical entries and preserves custom glosses, definitions, and notes. Saved words can be exported as CSV.
+.SH GEMATRIA
+Mispar Gadol calculates live while Hebrew is typed or pasted. Niqqud/cantillation are ignored. Final forms use extended values: ך=500, ם=600, ן=700, ף=800, ץ=900.
+.SH OBSERVATORY
+Local Swiss Ephemeris calculations include current/event and natal charts, planets, houses, ASC/DSC, MC/IC, aspects, retrograde state, Moon phase, and sunrise/sunset. Observatory is calculation-only.
+.SH KEYBOARD
+.TP
+.B Ctrl+L
+Lock all modules.
+.TP
+.B Ctrl+N
+New Leaf.
+.TP
+.B Ctrl+S
+Preserve Leaf.
+.TP
+.B F6
+Copy Hebrew substitution.
+.TP
+.B F7
+Copy RTL 3-4-5.
+.TP
+.B F8
+Copy latest Watcher response.
+.TP
+.B Ctrl+Q
+Quit.
+.SH FILES
+.TP
+.I ~/.local/share/quarries/archive.qry
+Primary Quarries database.
+.TP
+.I ~/Downloads/quarries-hebrew-study-*.csv
+Hebrew study exports.
+.TP
+.I ~/Downloads/quarries-*.qryx
+Encrypted Archive exports.
+.SH INSTALLATION
+Run:
+.nf
+chmod +x install.sh
+./install.sh
+.fi
+.PP
+The installer prefers
+.I /usr/local/bin/quarries
+and installs this manual under
+.I /usr/local/share/man/man1/quarries.1 .
+.SH PRIVACY
+Do not commit private Archive databases, exports, passwords, or personal records.

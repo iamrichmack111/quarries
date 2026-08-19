@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quarries"
+version = "0.7.3"
+description = "Private encrypted research workspace with local AI, Hebrew and Strongs study, Mispar Gadol, semantic retrieval, and Swiss Ephemeris charts."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "textual>=0.89",
+  "cryptography>=42.0",
+  "argon2-cffi>=23.1",
+  "httpx>=0.27",
+  "pyswisseph>=2.10.3.2"
+]
+
+[project.scripts]
+quarries = "quarries.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["quarries"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"quarries/data/hebrew.db" = "quarries/data/hebrew.db"
