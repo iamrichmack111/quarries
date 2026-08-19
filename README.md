@@ -1,4 +1,4 @@
-# Quarries v0.7.3
+# Quarries v0.8.0
 
 **The Archive remembers. The Watcher listens. You decide what is revealed.**
 
@@ -159,3 +159,19 @@ Suggested topics:
 `python`, `textual`, `sqlite`, `encryption`, `privacy`, `local-ai`, `ollama`, `rag`, `embeddings`, `embeddinggemma`, `hebrew`, `strongs-concordance`, `gematria`, `mispar-gadol`, `swiss-ephemeris`, `astronomy`, `astrology`, `terminal-ui`, `research-tools`, `knowledge-management`
 
 See `GITHUB.md` for commands.
+
+
+## Gematria Dictionary (v0.8.0)
+
+Quarries now bundles a structured local reference derived from the user-supplied 268-page gematria PDF.
+
+- **1,381 structured numbered sections**
+- **1,380 distinct gematria values**
+- Direct exact-number lookup: typing `73` immediately retrieves every source section indexed under 73.
+- Full-text concept search across the dictionary definitions.
+- Source PDF page provenance on every result.
+- Local related-concept recommendations based on text similarity.
+- A Methods view covering the gematria systems described in the opening source charts.
+- Exact numeric lookup is kept separate from recommendations so a similarity result can never replace the source's value assignment.
+
+The reference is stored read-only as `quarries/data/torahcalc.db`. The original PDF is not required at runtime.

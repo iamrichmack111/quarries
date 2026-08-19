@@ -393,6 +393,51 @@ Button:focus {
     color: #e2e8f0;
 }
 
+
+/* Gematria Dictionary */
+#gemdict-root { height: 1fr; }
+#gemdict-intro {
+    height: 3;
+    padding: 0 1;
+    border-bottom: solid #1f2937;
+}
+#gemdict-toolbar {
+    height: 4;
+    padding: 0 1;
+    background: #090d13;
+}
+#gemdict-value { width: 18; margin-right: 1; }
+#gemdict-text { width: 1fr; margin-right: 1; }
+#gemdict-methods { width: 12; margin-right: 1; }
+#gemdict-status { width: 34; padding-top: 1; color: #94a3b8; }
+#gemdict-layout { height: 1fr; padding: 1; }
+#gemdict-results-pane {
+    width: 27%;
+    min-width: 28;
+    height: 1fr;
+    margin-right: 1;
+}
+#gemdict-results { height: 1fr; }
+#gemdict-detail-pane {
+    width: 48%;
+    min-width: 44;
+    height: 1fr;
+    margin-right: 1;
+}
+#gemdict-detail { padding: 1; }
+#gemdict-related-pane {
+    width: 25%;
+    min-width: 28;
+    height: 1fr;
+}
+#gemdict-related { height: 1fr; }
+#gemdict-related-note {
+    height: auto;
+    max-height: 6;
+    padding: 1;
+    color: #94a3b8;
+}
+
 /* Observatory: compact MacBook-friendly local ephemeris + zodiac workbench */
 #observatory-root { height: 1fr; }
 #obs-intro {

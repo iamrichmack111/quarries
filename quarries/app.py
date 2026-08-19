@@ -55,6 +55,7 @@ from .hebrew_lexicon import HebrewLexicon
 from .gematria import mispar_gadol, breakdown
 from .observatory import HOUSE_SYSTEMS, SIDEREAL_MODES, calculate_chart, format_chart
 from .storage import Store
+from .torahcalc_reference import TorahCalcReference
 from .watcher import render_watcher
 
 DEFAULT_AUTO_LOCK_SECONDS = 10 * 60
@@ -265,6 +266,8 @@ class MainScreen(Screen):
                 yield WatcherPane()
             with TabPane("Hebrew / Strong's", id="hebrew-tab"):
                 yield HebrewPane()
+            with TabPane("Gematria Dictionary", id="gematria-dict-tab"):
+                yield GematriaDictionaryPane()
             with TabPane("Observatory", id="observatory-tab"):
                 yield ObservatoryPane()
             with TabPane("The Vault", id="vault-tab"):
@@ -911,6 +914,171 @@ class HebrewPane(Static):
         tabs.active = "watcher-tab"
 
 
+
+
+class GematriaDictionaryPane(Static):
+    """Structured number/value dictionary derived from the supplied TorahCalc PDF."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.ref: TorahCalcReference | None = None
+        self.current_id: int | None = None
+        self.current_value: int | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="gemdict-root"):
+            yield Static(
+                "[b]GEMATRIA DICTIONARY[/b]  Exact value lookup + concept search + local related recommendations",
+                id="gemdict-intro",
+            )
+            with Horizontal(id="gemdict-toolbar"):
+                yield Input(
+                    placeholder="Enter a number, e.g. 73",
+                    id="gemdict-value",
+                )
+                yield Input(
+                    placeholder="Search definitions/concepts, e.g. wisdom",
+                    id="gemdict-text",
+                )
+                yield Button("Methods", id="gemdict-methods")
+                yield Static("Local structured reference", id="gemdict-status")
+            with Horizontal(id="gemdict-layout"):
+                with Vertical(id="gemdict-results-pane", classes="pane"):
+                    yield Static("VALUE / SEARCH RESULTS", classes="pane-title")
+                    yield ListView(id="gemdict-results")
+                with VerticalScroll(id="gemdict-detail-pane", classes="pane"):
+                    yield Static(
+                        "Enter a gematria number to retrieve every definition stored under that value, "
+                        "or search the source definitions by concept.",
+                        id="gemdict-detail",
+                    )
+                with Vertical(id="gemdict-related-pane", classes="pane"):
+                    yield Static("RELATED CONCEPTS", classes="pane-title")
+                    yield ListView(id="gemdict-related")
+                    yield Static(
+                        "Recommendations use local text-similarity across the structured dictionary. "
+                        "Exact-number matches remain separate and authoritative.",
+                        id="gemdict-related-note",
+                    )
+
+    def on_mount(self) -> None:
+        try:
+            self.ref=TorahCalcReference()
+            rows, values=self.ref.stats()
+            self.query_one("#gemdict-status", Static).update(
+                f"{rows:,} sections • {values:,} values • local/read-only"
+            )
+        except Exception as exc:
+            self.query_one("#gemdict-status", Static).update(f"Reference unavailable: {exc}")
+
+    def _populate(self, rows) -> None:
+        listing=self.query_one("#gemdict-results", ListView)
+        listing.clear()
+        self.query_one("#gemdict-related", ListView).clear()
+        for row in rows:
+            first=" ".join(str(row["body"]).split())[:115]
+            item=ListItem(Label(
+                f"[b]{row['value']}[/b]  •  PDF p.{row['source_page']}\n[dim]{first}[/]"
+            ))
+            item.ref_id=int(row["id"])
+            item.value=int(row["value"])
+            listing.append(item)
+        if rows:
+            self._show_row(rows[0])
+        else:
+            self.current_id=None
+            self.current_value=None
+            self.query_one("#gemdict-detail", Static).update("No matching dictionary section found.")
+
+    def _show_row(self, row) -> None:
+        if self.ref is None:
+            return
+        self.current_id=int(row["id"])
+        self.current_value=int(row["value"])
+        self.query_one("#gemdict-detail", Static).update(self.ref.format_hit(row))
+        related=self.query_one("#gemdict-related", ListView)
+        related.clear()
+        for r,score in self.ref.related(self.current_id, limit=12):
+            first=" ".join(str(r["body"]).split())[:72]
+            item=ListItem(Label(
+                f"[b]{r['value']}[/b]  {score:.2f}\n[dim]{first}[/]"
+            ))
+            item.ref_id=int(r["id"])
+            item.value=int(r["value"])
+            related.append(item)
+
+    @on(Input.Changed, "#gemdict-value")
+    def value_changed(self, event: Input.Changed) -> None:
+        if self.ref is None:
+            return
+        raw=event.value.strip()
+        if not raw:
+            return
+        if not raw.isdigit():
+            self.query_one("#gemdict-detail", Static).update("Enter a whole-number gematria value.")
+            return
+        value=int(raw)
+        rows=self.ref.lookup_value(value)
+        self._populate(rows)
+        self.query_one("#gemdict-status", Static).update(
+            f"Value {value}: {len(rows)} source section(s)"
+        )
+
+    @on(Input.Submitted, "#gemdict-value")
+    def value_submitted(self, event: Input.Submitted) -> None:
+        self.value_changed(Input.Changed(event.input, event.value))
+
+    @on(Input.Submitted, "#gemdict-text")
+    def text_submitted(self, event: Input.Submitted) -> None:
+        if self.ref is None:
+            return
+        q=event.value.strip()
+        if not q:
+            return
+        rows=self.ref.search_text(q)
+        self._populate(rows)
+        self.query_one("#gemdict-status", Static).update(
+            f"Concept search: {q!r} • {len(rows)} result(s)"
+        )
+
+    @on(ListView.Selected, "#gemdict-results")
+    def select_result(self, event: ListView.Selected) -> None:
+        if self.ref is None:
+            return
+        ref_id=getattr(event.item,"ref_id",None)
+        if ref_id is None:
+            return
+        row=self.ref.conn.execute(
+            "SELECT id,value,source_page,body FROM value_sections WHERE id=?",(int(ref_id),)
+        ).fetchone()
+        if row:
+            self._show_row(row)
+
+    @on(ListView.Selected, "#gemdict-related")
+    def select_related(self, event: ListView.Selected) -> None:
+        if self.ref is None:
+            return
+        ref_id=getattr(event.item,"ref_id",None)
+        if ref_id is None:
+            return
+        row=self.ref.conn.execute(
+            "SELECT id,value,source_page,body FROM value_sections WHERE id=?",(int(ref_id),)
+        ).fetchone()
+        if row:
+            self._show_row(row)
+
+    @on(Button.Pressed, "#gemdict-methods")
+    def show_methods(self) -> None:
+        if self.ref is None:
+            return
+        lines=["[b]GEMATRIA METHODS IN THE SOURCE[/b]",""]
+        for row in self.ref.methods():
+            lines.append(
+                f"[b]{row['name']}[/b]  {row['hebrew_name'] or ''}\n"
+                f"{row['description']}  [dim](PDF p.{row['source_page']})[/]\n"
+            )
+        self.query_one("#gemdict-detail", Static).update("\n".join(lines))
+        self.query_one("#gemdict-related", ListView).clear()
 
 class ObservatoryPane(Static):
     """Local astronomical + zodiac workbench powered by Swiss Ephemeris."""

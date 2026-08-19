@@ -1,4 +1,4 @@
-# Quarries v0.7.3
+# Quarries v0.8.0
 
 Release-ready documentation and installation packaging.
 
@@ -22,3 +22,13 @@ Release-ready documentation and installation packaging.
 - Saved Hebrew list + CSV export.
 - Local Swiss Ephemeris Observatory.
 - No Observatory-to-Watcher interpretation bridge.
+
+
+## Gematria reference corpus
+- Added structured `torahcalc.db`.
+- Parsed 1,381 numbered source sections across 1,380 distinct values.
+- Added exact gematria-number lookup.
+- Added concept/definition FTS search.
+- Added source-page provenance.
+- Added local related-concept recommendations.
+- Added source gematria-method reference view.

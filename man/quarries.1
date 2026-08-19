@@ -1,4 +1,4 @@
-.TH QUARRIES 1 "August 2026" "Quarries 0.7.3" "User Commands"
+.TH QUARRIES 1 "August 2026" "Quarries 0.8.0" "User Commands"
 .SH NAME
 quarries \- private encrypted research workspace with local AI, Hebrew lexical study, gematria, and ephemeris tools
 .SH SYNOPSIS
@@ -81,3 +81,9 @@ and installs this manual under
 .I /usr/local/share/man/man1/quarries.1 .
 .SH PRIVACY
 Do not commit private Archive databases, exports, passwords, or personal records.
+
+.SH GEMATRIA DICTIONARY
+The Gematria Dictionary tab provides exact numerical lookup over a structured local reference derived from the supplied gematria PDF.
+Entering a value such as 73 retrieves every source section indexed under that value.
+Concept search uses SQLite full-text search, and the Related Concepts panel provides local text-similarity recommendations.
+Every result displays the source PDF page.

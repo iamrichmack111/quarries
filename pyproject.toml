@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quarries"
-version = "0.7.3"
+version = "0.8.0"
 description = "Private encrypted research workspace with local AI, Hebrew and Strongs study, Mispar Gadol, semantic retrieval, and Swiss Ephemeris charts."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,3 +24,4 @@ packages = ["quarries"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "quarries/data/hebrew.db" = "quarries/data/hebrew.db"
+"quarries/data/torahcalc.db" = "quarries/data/torahcalc.db"
