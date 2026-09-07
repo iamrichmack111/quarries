@@ -290,3 +290,14 @@ Related issue: #25
 
 ---
 
+
+## #26 — Complete Quarries v0.9.3 integration milestone
+
+**Status:** Completed — historical backfill
+
+Completed the v0.9.3 integrated milestone combining the encrypted Archive, local RAG, Watcher, Hebrew and Strong's research, Gematria Dictionary, Swiss Ephemeris Observatory, Flask GUI, Textual TUI, macOS application, Docker, GHCR, CI/CD, D2 documentation, and GitHub Wiki.
+
+Related issue: #26
+
+---
+
