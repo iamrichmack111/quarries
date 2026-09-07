@@ -1,8 +1,43 @@
 #!/usr/bin/env bash
 set -euo pipefail
-REPO="${REPO:-iamrichmack111/quarries}"
-DESCRIPTION="Private encrypted research workspace with local AI, Hebrew/Strong's study, Mispar Gadol, semantic RAG, and Swiss Ephemeris charts."
-command -v gh >/dev/null || { echo "GitHub CLI (gh) is required." >&2; exit 1; }
-gh auth status >/dev/null
-gh repo edit "$REPO" --description "$DESCRIPTION"   --add-topic python --add-topic textual --add-topic sqlite --add-topic encryption   --add-topic privacy --add-topic local-ai --add-topic ollama --add-topic rag   --add-topic embeddings --add-topic embeddinggemma --add-topic hebrew   --add-topic strongs-concordance --add-topic gematria --add-topic mispar-gadol   --add-topic swiss-ephemeris --add-topic astronomy --add-topic astrology   --add-topic terminal-ui --add-topic research-tools --add-topic knowledge-management
-gh repo view "$REPO" --json nameWithOwner,description,repositoryTopics,visibility
+
+REPO="iamrichmack111/quarries"
+
+echo "==> Configuring GitHub repository metadata for $REPO"
+
+gh repo edit "$REPO" \
+  --description "Private encrypted research workspace with local AI, Hebrew and Strong's study, gematria, RAG, Swiss Ephemeris, Flask, macOS desktop support, and Docker." \
+  --enable-wiki=true
+
+echo "==> Setting repository topics"
+
+gh api \
+  --method PUT \
+  -H "Accept: application/vnd.github+json" \
+  "/repos/$REPO/topics" \
+  -f 'names[]=python' \
+  -f 'names[]=flask' \
+  -f 'names[]=textual' \
+  -f 'names[]=sqlite' \
+  -f 'names[]=encryption' \
+  -f 'names[]=local-ai' \
+  -f 'names[]=ollama' \
+  -f 'names[]=rag' \
+  -f 'names[]=embeddings' \
+  -f 'names[]=hebrew' \
+  -f 'names[]=gematria' \
+  -f 'names[]=strongs-concordance' \
+  -f 'names[]=swiss-ephemeris' \
+  -f 'names[]=astrology' \
+  -f 'names[]=research-tools' \
+  -f 'names[]=privacy' \
+  -f 'names[]=docker' \
+  -f 'names[]=github-actions' \
+  -f 'names[]=macos' \
+  -f 'names[]=terminal-ui'
+
+echo
+echo "==> Current repository metadata"
+
+gh repo view "$REPO" \
+  --json nameWithOwner,description,visibility,repositoryTopics

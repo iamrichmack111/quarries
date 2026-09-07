@@ -72,16 +72,27 @@ fi
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   "$ROOT/scripts/build_macos_app.sh"
-  mkdir -p "$HOME/Applications"
-  rm -rf "$HOME/Applications/Quarries.app"
-  cp -R "$ROOT/Quarries.app" "$HOME/Applications/Quarries.app"
-  xattr -dr com.apple.quarantine "$HOME/Applications/Quarries.app" 2>/dev/null || true
-  touch "$HOME/Applications/Quarries.app"
-  MAC_APP_DEST="$HOME/Applications/Quarries.app"
+  MAC_APP_DEST="/Applications/Quarries.app"
+  echo "Installing Quarries.app to: $MAC_APP_DEST"
+  if rm -rf "$MAC_APP_DEST" 2>/dev/null && cp -R "$ROOT/Quarries.app" "$MAC_APP_DEST" 2>/dev/null; then
+    :
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo rm -rf "$MAC_APP_DEST"
+    sudo cp -R "$ROOT/Quarries.app" "$MAC_APP_DEST"
+    sudo chown -R "$USER":staff "$MAC_APP_DEST" 2>/dev/null || true
+  else
+    echo "Unable to install to /Applications without administrator privileges." >&2
+    exit 1
+  fi
+  xattr -cr "$MAC_APP_DEST" 2>/dev/null || true
+  chmod +x "$MAC_APP_DEST/Contents/MacOS/Quarries" 2>/dev/null || sudo chmod +x "$MAC_APP_DEST/Contents/MacOS/Quarries"
+  touch "$MAC_APP_DEST"
+  LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+  [[ -x "$LSREGISTER" ]] && "$LSREGISTER" -f "$MAC_APP_DEST" >/dev/null 2>&1 || true
 fi
 
 echo
-echo "Quarries v0.9.2 installed."
+echo "Quarries v0.9.3 installed."
 echo "CLI: $BIN_DEST"
 [[ -n "$MAC_APP_DEST" ]] && echo "Desktop app: $MAC_APP_DEST"
 echo "Runtime: $RUNTIME_ROOT"

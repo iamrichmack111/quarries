@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
+
 import httpx
 
-BASE_URL = "http://127.0.0.1:11434"
+BASE_URL = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 CHAT_MODEL = "huihui_ai/qwen3.5-abliterated:4b"
 REFERENCE_MODEL = "gemma3:4b"
 EMBED_MODEL = "embeddinggemma"

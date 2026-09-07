@@ -29,8 +29,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>Quarries</string>
   <key>CFBundleDisplayName</key><string>Quarries</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.9.2</string>
-  <key>CFBundleVersion</key><string>0.9.2</string>
+  <key>CFBundleShortVersionString</key><string>0.9.3</string>
+  <key>CFBundleVersion</key><string>0.9.3</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

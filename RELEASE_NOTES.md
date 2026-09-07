@@ -1,3 +1,22 @@
+# Quarries v0.9.1
+
+- Password entry for Archive and Watcher in the Flask GUI is now masked instead of using a visible-text browser prompt.
+- Added an in-app password unlock modal with Enter/Escape/Cancel handling.
+- Added `CHANGELOG.md` for cumulative release history going forward.
+- Existing encrypted user data and password records remain unchanged.
+
+# Quarries v0.9.0
+
+## Local Flask GUI
+
+- Rebuilt the Quarries interface as a local Flask GUI at `127.0.0.1:8787`.
+- Preserves the existing encrypted database at `~/.local/share/quarries/archive.qry`.
+- Preserves all three independent passwords and Lock All behavior.
+- Carries forward Archive, Watcher/RAG, Hebrew/Strong's, Gematria Dictionary, Observatory and Vault features.
+- Bundled Hebrew and TorahCalc SQLite reference databases are unchanged.
+- `quarries` / `quarries-web` launch the GUI; `quarries-tui` preserves the original Textual interface.
+- macOS Quarries.app now starts the GUI directly without a Terminal window.
+
 # Quarries v0.8.4
 
 - Added a Hebrew-inspired terminal-safe eye/logo treatment to the top of `man quarries`.

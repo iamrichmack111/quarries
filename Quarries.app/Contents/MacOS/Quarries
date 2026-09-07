@@ -1,19 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-
-Q="$(command -v quarries 2>/dev/null || true)"
-if [[ -z "$Q" ]]; then
-  osascript -e 'display alert "Quarries is not installed" message "Run install.sh from the Quarries release folder first." as critical'
+RUNTIME="$HOME/Library/Application Support/Quarries/runtime/.venv/bin/quarries"
+if [[ ! -x "$RUNTIME" ]]; then
+  osascript -e 'display alert "Quarries runtime is missing" message "Run install.sh from a Quarries release folder to install or repair the application." as critical'
   exit 1
 fi
-
-escaped_q=${Q//\\/\\\\}
-escaped_q=${escaped_q//\"/\\\"}
-osascript <<APPLESCRIPT
-set qcmd to "$escaped_q"
-tell application "Terminal"
-    activate
-    do script "exec " & quoted form of qcmd
-end tell
-APPLESCRIPT
+LOG="$HOME/Library/Logs/Quarries.log"
+mkdir -p "$(dirname "$LOG")"
+exec "$RUNTIME" >>"$LOG" 2>&1
