@@ -147,3 +147,14 @@ Related issue: #12
 
 ---
 
+
+## #13 — Build deterministic Swiss Ephemeris Observatory
+
+**Status:** Completed — historical backfill
+
+Implemented the Swiss Ephemeris Observatory with current, event, and natal calculations; tropical and sidereal modes; planets and nodes; retrogrades; ASC, DSC, MC, IC; house cusps; aspects; lunar phase and illumination; sunrise and sunset; and traditional dignity metadata.
+
+Related issue: #13
+
+---
+
