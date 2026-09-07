@@ -103,3 +103,14 @@ Related issue: #8
 
 ---
 
+
+## #9 — Bundle Hebrew and Strong's lexical research database
+
+**Status:** Completed — historical backfill
+
+Added the bundled Hebrew lexical research database with approximately 8,674 entries supporting Strong's H-number search, Hebrew, transliteration, pronunciation, glosses, definitions, notes, study lists, CSV export, and Watcher staging.
+
+Related issue: #9
+
+---
+
