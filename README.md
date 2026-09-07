@@ -1,103 +1,141 @@
-# Quarries v0.8.4
+# Quarries v0.9.3
 
-![Quarries logo](assets/quarries-logo.png)
+[![CI](https://github.com/iamrichmack111/quarries/actions/workflows/ci.yml/badge.svg)](https://github.com/iamrichmack111/quarries/actions/workflows/ci.yml)
+[![Docker](https://github.com/iamrichmack111/quarries/actions/workflows/docker.yml/badge.svg)](https://github.com/iamrichmack111/quarries/actions/workflows/docker.yml)
+[![Release](https://github.com/iamrichmack111/quarries/actions/workflows/release.yml/badge.svg)](https://github.com/iamrichmack111/quarries/actions/workflows/release.yml)
+![Version](https://img.shields.io/badge/version-0.9.3-blue)
+![Python](https://img.shields.io/badge/Python-3.10%2B-informational)
+![macOS](https://img.shields.io/badge/macOS-Desktop_App-informational)
+![Privacy](https://img.shields.io/badge/default-localhost_only-success)
+![Container](https://img.shields.io/badge/GHCR-private_container-blue)
 
-## v0.8.4 highlights
-
-- Added a Hebrew-inspired terminal-safe eye logo to `man quarries`; the full graphical logo remains bundled at `assets/quarries-logo.png` and is used by the macOS app.
-- **F6 is now context-aware:** on Hebrew / Strong's it copies the selected Hebrew lemma; on Gematria Dictionary it copies the current Hebrew calculation input or the selected value as Hebrew numerals; on Archive it retains the existing Hebrew-substitution copy behavior.
-- Hebrew / Strong's now includes a visible **Copy Hebrew [F6]** action.
-- The release includes a **Quarries.app** macOS launcher using the new Hebrew-focused Quarries logo. The TUI still runs in Terminal, but it can now be launched like a normal Mac application after installation.
-- The installer installs the CLI, man page, and on macOS the application bundle.
-- Upgrades preserve the personal database at `~/.local/share/quarries/archive.qry`; the release ZIP does **not** contain your personal Archive database.
+<p align="center"><img src="assets/quarries-logo.png" width="220" alt="Quarries logo"></p>
 
 **The Archive remembers. The Watcher listens. You decide what is revealed.**
 
-Quarries is a private terminal research workspace that combines an encrypted personal Archive, local semantic retrieval, a local AI Watcher, a preserved Hebrew/Strong's lexical database with custom glosses, Mispar Gadol gematria, saved Hebrew study lists, and a local Swiss Ephemeris Observatory.
+Quarries is a private local research workspace combining an encrypted personal Archive, a Flask desktop/web GUI, an optional Textual terminal UI, local Ollama inference and semantic retrieval, a preserved Hebrew/Strong's lexical database, multi-method gematria, a TorahCalc-derived local reference, and a Swiss Ephemeris Observatory.
 
-Quarries is designed to keep deterministic data and private writing local. The Observatory remains a calculation tool and is intentionally **not** sent to the Watcher.
+## Architecture
 
-## Highlights
+![Quarries architecture](docs/architecture.svg)
+
+The editable D2 source is [`docs/architecture.d2`](docs/architecture.d2). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for trust boundaries and rendering instructions.
+
+The delivery pipeline is documented in [`docs/CI-CD.md`](docs/CI-CD.md), with editable D2 source at [`docs/cicd.d2`](docs/cicd.d2).
+
+## v0.9.3 highlights
+
+- **System Applications install:** the macOS desktop bundle now installs to `/Applications/Quarries.app` and refreshes LaunchServices.
+- **Desktop launcher hardening:** CI validates that `CFBundleExecutable` exists, is executable, and targets the stable Quarries runtime.
+- **Stable Flask entry point:** desktop/CLI launchers resolve to the packaged `quarries.webapp:main` entry point rather than a version-numbered Downloads folder.
+- **Expanded CI/CD documentation:** added `docs/CI-CD.md` and editable `docs/cicd.d2` pipeline architecture with GitHub Actions, macOS/Linux tests, GHCR and release flow.
+- **Expanded Wiki:** added dedicated Desktop App and CI/CD pages.
+- **Container health checks:** Docker and Compose now expose runtime health through `/api/status`.
+- Keeps all v0.9.2 features: detailed README, D2 system architecture, GitHub Actions, private GHCR delivery, release automation, Wiki bootstrap, Docker Compose, badges and repository topics.
+- Maintains the masked Archive/Watcher password fields introduced in v0.9.1.
+
+## Core workspaces
 
 ### The Archive
-- Password-protected encrypted Leaves stored in SQLite.
+
+- Password-protected encrypted Leaves stored in the user's local SQLite database.
 - ChaCha20-Poly1305 encrypted text fields.
-- Searchable/editable personal notes.
+- Search, edit, delete and local semantic indexing.
 - Quarries Hebrew-letter substitution and RTL 3-4-5 rendering.
-- `F6` copies the Hebrew substitution.
-- `F7` copies the RTL 3-4-5 view.
-- Local semantic indexing with `embeddinggemma`.
-- Model/dimension/index-version metadata prevents incompatible embedding spaces from being mixed.
-- Re-index support for stale or previous-model embeddings.
-- Password-encrypted `.qryx` Archive exports.
+- `embeddinggemma` vector indexing with model/dimension/version metadata.
+- Password-encrypted QRYX4 exports.
 
 ### The Watcher
-- Separately password-protected local conversation workspace.
-- Default chat model: `huihui_ai/qwen3.5-abliterated:4b`.
+
+- Independent Watcher password.
+- Default model: `huihui_ai/qwen3.5-abliterated:4b`.
 - Reference-context model: `gemma3:4b`.
-- Local Ollama inference; no hosted LLM is required.
-- Similar-Leaf retrieval from the encrypted Archive.
-- Visible Reference Context for intentionally shared material.
-- `F8` copies the most recent Watcher response.
+- Similar-Leaf retrieval using local embeddings.
+- Empty Mind, Reference, Similar Leaves, and Reference + Similar modes.
+- AI interpretation is kept separate from deterministic calculators and reference data.
 
 ### Hebrew / Strong's
-- Bundled local Hebrew Fuzzy lexicon with **8,674 entries**.
-- Search by Hebrew, Strong's `H####`, transliteration, pronunciation, gloss, or definition.
-- Niqqud/cantillation-insensitive Hebrew matching.
-- Preserved custom `gloss`, `definitions`, and `notes`.
-- Mispar Gadol shown with dictionary entries.
-- Live Mispar Gadol calculator: paste or type Hebrew and it calculates immediately.
-- Final-letter values: `ך=500`, `ם=600`, `ן=700`, `ף=800`, `ץ=900`.
-- Persistent saved-word study list.
-- CSV export with Hebrew, Strong's ID, transliteration, morphology, custom gloss, definitions, notes, Mispar Gadol, and save time.
-- Hebrew lexical entries can be intentionally sent to Watcher as Reference Context.
 
-> The bundled Hebrew database currently contains lexical entries but no complete Strong's-tagged verse corpus. Quarries does not claim to include a complete interlinear Tanakh.
+- Bundled read-only lexicon containing **8,674 entries**.
+- Search by Hebrew, Strong's `H####`, transliteration, pronunciation, custom gloss, or definition.
+- Preserves the source database's custom glosses, definitions and notes.
+- Niqqud/cantillation-insensitive Hebrew matching.
+- Mispar Gadol and saved study list with CSV export.
+
+> The bundled Hebrew database contains lexical entries, not a complete Strong's-tagged verse/token corpus. Quarries does not claim to ship a full interlinear Tanakh.
+
+### Gematria Dictionary
+
+- Bundled TorahCalc-derived `torahcalc.db` reference.
+- **1,381 structured numbered sections** and **1,380 distinct values** in the current indexed source.
+- Exact number lookup and full-text concept search.
+- Source PDF page provenance.
+- Related-concept recommendations are explicitly separate from authoritative exact-number lookup.
+- Multi-method calculator includes the supported systems implemented in `quarries/gematria.py`; spelling-dependent systems are labeled accordingly.
+- Prime factorization and repeated digit reduction are arithmetic metadata, not additional gematria methods.
 
 ### Observatory
-The Observatory uses Swiss Ephemeris locally and remains independent of the Watcher.
 
-It calculates current/event and natal/birth charts, Tropical and Sidereal zodiac modes, multiple sidereal references, multiple house systems, planetary and node positions, Ascendant/Descendant, MC/IC, house cusps, retrograde motion, sign element/modality/polarity, traditional essential dignity, major/selected minor aspects, Moon phase/illumination, and sunrise/sunset for supplied coordinates/timezone.
+Swiss Ephemeris-backed local calculations include current/event and natal charts, Tropical and Sidereal modes, multiple sidereal references, several house systems, planetary/node positions, Ascendant/Descendant, MC/IC, cusps, retrograde state, sign element/modality/polarity, traditional essential dignity, aspects, Moon phase/illumination and sunrise/sunset.
 
-Location is entered as latitude, longitude, and an IANA timezone such as `America/New_York`. Coordinates are the geographic location; the timezone identifier is only the local clock rule.
+The Observatory is deterministic and intentionally **not** sent to the Watcher for astrological interpretation.
 
 ## Security model
 
 Quarries uses three independent gates:
 
-1. **Application password** — enters the Quarries shell.
+1. **Application password** — enters Quarries.
 2. **Archive password** — unlocks encrypted Leaves and Archive retrieval.
 3. **Watcher password** — unlocks encrypted Watcher conversations.
 
-The Archive and Watcher do not automatically unlock when the application gate opens.
+Archive and Watcher remain locked until their own passwords are entered. Browser password inputs are masked. Active encryption keys are kept in process memory and are not stored in browser cookies. **Lock All** clears the active keys and ephemeral Reference Context.
 
-`Ctrl+L` or the visible **Lock All** button clears the active application, Archive, Watcher, and ephemeral Reference Context keys from memory and returns to the application gate.
-
-Auto-lock defaults to 10 minutes and can be configured for 1, 5, 10, 15, 30, or 60 minutes.
-
-## Local data
-
-The primary Quarries SQLite database is stored under:
+The primary personal database remains:
 
 ```text
 ~/.local/share/quarries/archive.qry
 ```
 
-This file lives outside the application/release directory. Installing a new Quarries release or sharing the release ZIP does not copy, reset, or delete your personal database. A recipient starts with their own new local database on first run.
-
-Back up the Archive before major upgrades:
+It lives outside the application/runtime tree, so normal application upgrades do not replace it. Back it up before major upgrades:
 
 ```bash
 cp ~/.local/share/quarries/archive.qry ~/.local/share/quarries/archive-backup-$(date +%Y%m%d-%H%M%S).qry
 ```
 
-## Requirements
+## macOS desktop installation
 
-- macOS or Linux
-- Python 3.10+
-- Ollama for Watcher/RAG features
+Requirements: macOS 11+, Python 3.10+, and Ollama for Watcher/RAG features.
 
-Install the local models:
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+The installer creates:
+
+```text
+~/Library/Application Support/Quarries/runtime/
+/Applications/Quarries.app
+/usr/local/bin/quarries       # when writable/available
+/usr/local/bin/quarries-tui   # optional terminal UI
+```
+
+The app bundle contains the Quarries icon and launches the installed standalone runtime without opening a Terminal window. The Flask server still defaults to `127.0.0.1:8787` and opens the default browser.
+
+Launch from Finder/Spotlight or:
+
+```bash
+open /Applications/Quarries.app
+```
+
+CLI equivalents:
+
+```bash
+quarries       # Flask GUI
+quarries-tui   # original Textual TUI
+```
+
+## Ollama models
 
 ```bash
 ollama pull huihui_ai/qwen3.5-abliterated:4b
@@ -105,95 +143,98 @@ ollama pull gemma3:4b
 ollama pull embeddinggemma
 ```
 
-## Install
+## Docker
+
+Build and run locally:
 
 ```bash
-chmod +x install.sh
-./install.sh
+docker compose up --build
 ```
 
-The installer creates an isolated virtual environment, installs Quarries, places a global launcher in `/usr/local/bin` when possible, installs the `quarries(1)` man page, and falls back to `~/.local/bin` if system installation is unavailable. On macOS it also installs `Quarries.app` into `/Applications` when possible (or `~/Applications` as a fallback). The app opens the Quarries TUI in Terminal and uses the bundled Quarries logo as its application icon.
+Open `http://127.0.0.1:8787`.
 
-Launch from any directory:
+The host port is deliberately loopback-only. Personal data is persisted in the `quarries-data` named volume. The Compose configuration expects Ollama on the host at `11434` via `host.docker.internal`.
+
+Direct build:
 
 ```bash
+docker build -t quarries:local .
+docker run --rm \
+  -p 127.0.0.1:8787:8787 \
+  -e QUARRIES_HOST=0.0.0.0 \
+  -e QUARRIES_OPEN_BROWSER=0 \
+  -v quarries-data:/home/quarries/.local/share/quarries \
+  quarries:local
+```
+
+## Development
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e . pytest
+pytest -q
 quarries
 ```
 
-On macOS you can also launch **Quarries** from Finder, Spotlight, or Launchpad after running `install.sh`.
+Runtime variables:
 
-Read the manual:
+| Variable | Default | Purpose |
+|---|---|---|
+| `QUARRIES_HOST` | `127.0.0.1` | Flask bind address |
+| `QUARRIES_PORT` | `8787` | Flask port |
+| `QUARRIES_OPEN_BROWSER` | `1` | Set `0` for Docker/headless |
+
+## CI/CD
+
+GitHub Actions workflows are under `.github/workflows/`:
+
+- **CI:** Ubuntu + macOS tests across Python 3.10 and 3.12, import smoke test, and package artifact build.
+- **Docker / GHCR:** builds and publishes `ghcr.io/iamrichmack111/quarries` on main/tag pushes. Repository/package privacy should remain private.
+- **Release:** pushing a `v*` tag builds wheel/sdist/source ZIP and creates a GitHub Release.
+
+## Wiki
+
+Seed pages live under `wiki/`. Initialize or refresh the GitHub Wiki with:
 
 ```bash
-man quarries
+./scripts/init_wiki.sh
 ```
 
-### Why `/usr/local/bin` instead of `/bin`?
+This enables the Wiki, clones the `.wiki.git` repository, synchronizes the seeded pages, commits them, and pushes them.
 
-On modern macOS, `/bin` is protected by System Integrity Protection and is reserved for operating-system commands. `/usr/local/bin` is the standard location for user-installed command-line programs.
+## Repository metadata and topics
 
-## Keyboard shortcuts
+Apply the description/topics and ensure Wiki is enabled:
 
-| Key | Action |
-|---|---|
-| `Ctrl+L` | Lock all modules |
-| `Ctrl+N` | New Leaf |
-| `Ctrl+S` | Preserve Leaf |
-| `F6` | Copy Hebrew for the active workspace (Strong's lemma / Gematria input or numeral / Archive substitution) |
-| `F7` | Copy RTL 3-4-5 |
-| `F8` | Copy latest Watcher response |
-| `Ctrl+Q` | Quit |
-
-## Mispar Gadol example
-
-```text
-שלום
-ש(300) + ל(30) + ו(6) + ם(600) = 936
+```bash
+./github_metadata.sh
 ```
 
-Niqqud and cantillation are ignored.
+Current topics include `python`, `flask`, `textual`, `sqlite`, `encryption`, `privacy`, `local-ai`, `ollama`, `rag`, `embeddings`, `embeddinggemma`, `hebrew`, `strongs-concordance`, `gematria`, `mispar-gadol`, `swiss-ephemeris`, `astronomy`, `astrology`, `macos`, and `docker`.
 
-## Privacy
+## Release / push
 
-Do not commit your personal `archive.qry`, `.qryx` exports, passwords, or private records. Review redistribution rights for any bundled lexical/reference data before making the repository public.
+```bash
+git add .
+git commit -m "Release Quarries v0.9.3 macOS app and delivery hardening"
+git push origin main
+git tag -a v0.9.3 -m "Quarries v0.9.3"
+git push origin v0.9.2
+```
 
-## Current limitations
+Then initialize/refresh metadata and Wiki:
 
-- The packaged Hebrew lexicon does not yet include a complete Strong's-tagged Tanakh verse/token corpus.
-- Observatory calculations are local; Quarries intentionally does not generate LLM astrology interpretations.
-- Ollama must be running for Watcher and embedding features.
+```bash
+./github_metadata.sh
+./scripts/init_wiki.sh
+```
 
-## Repository metadata
+## Privacy notes
 
-Suggested GitHub description:
+Never commit `archive.qry`, `.qryx` exports, passwords, secret keys, or private records. Review redistribution rights for bundled lexical/reference data before changing repository visibility. The repository is intended to remain **private**.
 
-> Private encrypted research workspace with local AI, Hebrew/Strong's study, Mispar Gadol, semantic RAG, and Swiss Ephemeris charts.
+## Changelog
 
-Suggested topics:
-
-`python`, `textual`, `sqlite`, `encryption`, `privacy`, `local-ai`, `ollama`, `rag`, `embeddings`, `embeddinggemma`, `hebrew`, `strongs-concordance`, `gematria`, `mispar-gadol`, `swiss-ephemeris`, `astronomy`, `astrology`, `terminal-ui`, `research-tools`, `knowledge-management`
-
-See `GITHUB.md` for commands.
-
-
-## Gematria Dictionary (v0.8.0)
-
-Quarries now bundles a structured local reference derived from the user-supplied 268-page gematria PDF.
-
-- **1,381 structured numbered sections**
-- **1,380 distinct gematria values**
-- Direct exact-number lookup: typing `73` immediately retrieves every source section indexed under 73.
-- Full-text concept search across the dictionary definitions.
-- Source PDF page provenance on every result.
-- Local related-concept recommendations based on text similarity.
-- A Methods view covering the gematria systems described in the opening source charts.
-- Exact numeric lookup is kept separate from recommendations so a similarity result can never replace the source's value assignment.
-
-The reference is stored read-only as `quarries/data/torahcalc.db`. The original PDF is not required at runtime.
-
-
-## Number structure + multi-method gematria (v0.8.1)
-
-The Gematria Dictionary now explains the arithmetic metadata printed by the source. For example, `408 → 12 → 3` is repeated decimal digit reduction, while `408 = 2^3 × 3 × 17` is prime factorization: the unique prime-number building blocks of 408. Factorization is displayed as mathematical structure, not treated as another gematria system.
-
-The Dictionary tab also has a Hebrew multi-method calculator with live results and CSV export. Supported calculations include Mispar Hechrachi, Gadol, Siduri, Katan, Perati, Shemi, Musafi, Bone'eh, Kidmi, Ne'elam, Meshulash, Ha'achor, Katan Mispari, Kolel, AtBash, Albam, Ofanim, Avgad, and Reverse Avgad. Shemi and Ne'elam use the explicit letter-name spellings from the source chart and are labeled as spelling-dependent.
+See [`CHANGELOG.md`](CHANGELOG.md).

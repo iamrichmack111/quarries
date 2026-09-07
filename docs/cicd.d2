@@ -1,0 +1,45 @@
+direction: right
+
+dev: "Developer" { shape: person }
+github: "GitHub Repository\nprivate" { icon: "https://cdn.simpleicons.org/github" }
+
+ci: "CI" {
+  icon: "https://cdn.simpleicons.org/githubactions"
+  linux: "Ubuntu\nPython 3.10 / 3.12" { icon: "https://cdn.simpleicons.org/linux" }
+  mac: "macOS\nPython 3.10 / 3.12" { icon: "https://cdn.simpleicons.org/apple" }
+  tests: "pytest + imports"
+  bundle: "Quarries.app\nbundle smoke test"
+  package: "wheel + sdist"
+}
+
+docker: "Docker Delivery" {
+  icon: "https://cdn.simpleicons.org/docker"
+  buildx: "Buildx"
+  ghcr: "Private GHCR\nghcr.io/iamrichmack111/quarries" { icon: "https://cdn.simpleicons.org/github" }
+}
+
+release: "Tagged Release" {
+  icon: "https://cdn.simpleicons.org/githubactions"
+  tag: "v* tag"
+  artifacts: "wheel + sdist + source ZIP"
+  github_release: "GitHub Release" { icon: "https://cdn.simpleicons.org/github" }
+}
+
+runtime: "Runtime Targets" {
+  macapp: "/Applications/Quarries.app" { icon: "https://cdn.simpleicons.org/apple" }
+  compose: "Docker Compose\n127.0.0.1:8787" { icon: "https://cdn.simpleicons.org/docker" }
+}
+
+dev -> github: "push / PR"
+github -> ci
+ci.linux -> ci.tests
+ci.mac -> ci.tests
+ci.mac -> ci.bundle
+ci.tests -> ci.package
+github -> docker: "main / v*"
+docker.buildx -> docker.ghcr
+github -> release: "v*"
+release.tag -> release.artifacts
+release.artifacts -> release.github_release
+release.github_release -> runtime.macapp: "source install"
+docker.ghcr -> runtime.compose: "pull"

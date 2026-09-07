@@ -1,0 +1,69 @@
+direction: right
+
+user: "Researcher" {
+  shape: person
+}
+
+mac: "Quarries.app\nmacOS Application" {
+  shape: rectangle
+  icon: "https://cdn.simpleicons.org/apple"
+}
+
+web: "Flask GUI\n127.0.0.1:8787" {
+  icon: "https://cdn.simpleicons.org/flask"
+}
+
+tui: "Textual TUI\nquarries-tui" {
+  icon: "https://cdn.simpleicons.org/python"
+}
+
+core: "Quarries Core" {
+  direction: down
+  archive: "Encrypted Archive\nChaCha20-Poly1305"
+  watcher: "Watcher / RAG"
+  hebrew: "Hebrew + Strong's\n8,674 entries"
+  gematria: "Gematria Engine\n+ TorahCalc reference"
+  observatory: "Observatory\nSwiss Ephemeris"
+  vault: "Vault / QRYX4 Export"
+}
+
+storage: "Local Storage" {
+  icon: "https://cdn.simpleicons.org/sqlite"
+  personal: "~/.local/share/quarries/archive.qry"
+  lexicon: "Bundled hebrew.db"
+  torahcalc: "Bundled torahcalc.db"
+}
+
+ollama: "Ollama" {
+  icon: "https://cdn.simpleicons.org/ollama"
+  chat: "huihui_ai/qwen3.5-abliterated:4b"
+  reference: "gemma3:4b"
+  embed: "embeddinggemma"
+}
+
+container: "Docker / GHCR" {
+  icon: "https://cdn.simpleicons.org/docker"
+}
+
+github: "GitHub CI/CD" {
+  icon: "https://cdn.simpleicons.org/githubactions"
+  ci: "Test macOS + Linux"
+  release: "Tagged Releases"
+  ghcr: "Private GHCR Image"
+}
+
+user -> mac: "click"
+user -> web: "browser"
+user -> tui: "optional"
+mac -> web: "launches local server"
+web -> core
+ tui -> core
+core.archive -> storage.personal
+core.vault -> storage.personal
+core.hebrew -> storage.lexicon
+core.gematria -> storage.torahcalc
+core.watcher -> ollama
+container -> web
+github.ci -> container: "build check"
+github.ghcr -> container: "publish"
+github.release -> mac: "source release"
