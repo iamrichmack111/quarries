@@ -180,3 +180,14 @@ Related issue: #15
 
 ---
 
+
+## #16 — Replace visible browser prompts with masked password dialogs
+
+**Status:** Completed — historical backfill
+
+Replaced JavaScript password prompts with application-native masked password fields for Archive and Watcher unlock flows, including Enter submission, Escape and Cancel behavior, and password clearing on close.
+
+Related issue: #16
+
+---
+
