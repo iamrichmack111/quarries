@@ -191,3 +191,14 @@ Related issue: #16
 
 ---
 
+
+## #17 — Package Quarries as a macOS desktop application
+
+**Status:** Completed — historical backfill
+
+Created the Quarries.app desktop launcher with application icon, stable runtime integration, LaunchServices support, runtime logging, and separation between the application bundle and personal research data.
+
+Related issue: #17
+
+---
+
