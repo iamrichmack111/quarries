@@ -257,3 +257,14 @@ Related issue: #22
 
 ---
 
+
+## #23 — Add D2 architecture and CI/CD diagrams
+
+**Status:** Completed — historical backfill
+
+Added editable D2 architecture and CI/CD diagrams with platform and technology iconography, plus rendered architecture documentation for the Quarries runtime and delivery pipeline.
+
+Related issue: #23
+
+---
+
