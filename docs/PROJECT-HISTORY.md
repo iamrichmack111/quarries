@@ -125,3 +125,14 @@ Related issue: #10
 
 ---
 
+
+## #11 — Build local Gematria Dictionary from research corpus
+
+**Status:** Completed — historical backfill
+
+Built the structured local Gematria Dictionary with deterministic numeric lookup, source-page provenance, SQLite full-text concept search, and local related-concept similarity while keeping semantic matches separate from exact numeric matches.
+
+Related issue: #11
+
+---
+
