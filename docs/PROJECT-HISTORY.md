@@ -158,3 +158,14 @@ Related issue: #13
 
 ---
 
+
+## #14 — Keep Observatory calculations isolated from AI interpretation
+
+**Status:** Completed — historical backfill
+
+Removed automatic chart-to-Watcher interpretation so probabilistic AI output cannot silently replace or distort deterministic Swiss Ephemeris calculations.
+
+Related issue: #14
+
+---
+
