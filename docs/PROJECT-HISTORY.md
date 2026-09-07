@@ -48,3 +48,14 @@ Related issue: #3
 
 ---
 
+
+## #4 — Implement encrypted QRYX Archive exports
+
+**Status:** Completed — historical backfill
+
+Implemented password-encrypted QRYX Archive exports for portable backups and transfers without exposing plaintext Archive contents.
+
+Related issue: #4
+
+---
+
