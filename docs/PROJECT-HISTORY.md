@@ -92,3 +92,14 @@ Related issue: #7
 
 ---
 
+
+## #8 — Implement ephemeral Watcher Reference Context
+
+**Status:** Completed — historical backfill
+
+Implemented explicitly staged and ephemeral Watcher Reference Context. Research material is supplied to the AI intentionally rather than automatically, and Lock All clears the staged context.
+
+Related issue: #8
+
+---
+
