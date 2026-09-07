@@ -235,3 +235,14 @@ Related issue: #20
 
 ---
 
+
+## #21 — Add GitHub Actions CI matrix
+
+**Status:** Completed — historical backfill
+
+Added GitHub Actions validation across Ubuntu and macOS using Python 3.10 and 3.12, including package installation, pytest, Flask import testing, Textual import testing, and Python distribution builds.
+
+Related issue: #21
+
+---
+
