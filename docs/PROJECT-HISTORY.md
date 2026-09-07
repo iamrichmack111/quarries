@@ -114,3 +114,14 @@ Related issue: #9
 
 ---
 
+
+## #10 — Implement Mispar Gadol final-letter values
+
+**Status:** Completed — historical backfill
+
+Implemented explicit Mispar Gadol final Hebrew letter values: final kaf 500, final mem 600, final nun 700, final pe 800, and final tsadi 900.
+
+Related issue: #10
+
+---
+
