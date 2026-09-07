@@ -15,3 +15,14 @@ and automated CI/CD.
 
 ---
 
+
+## #1 — Establish the Quarries local-first research architecture
+
+**Status:** Completed — historical backfill
+
+Established the original Python and Textual-based Quarries architecture, local-first data model, modular research workspaces, and separation between deterministic research functions, personal data, and optional local AI.
+
+Related issue: #1
+
+---
+
