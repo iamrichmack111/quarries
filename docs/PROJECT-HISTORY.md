@@ -37,3 +37,14 @@ Related issue: #2
 
 ---
 
+
+## #3 — Build encrypted Archive storage for research Leaves
+
+**Status:** Completed — historical backfill
+
+Implemented SQLite-backed encrypted research Leaves using Argon2id password derivation and ChaCha20-Poly1305 authenticated encryption, with search, editing, deletion, and persistent storage separate from application upgrades.
+
+Related issue: #3
+
+---
+
