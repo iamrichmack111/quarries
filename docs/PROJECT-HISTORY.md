@@ -202,3 +202,14 @@ Related issue: #17
 
 ---
 
+
+## #18 — Build Quarries macOS installer and stable runtime
+
+**Status:** Completed — historical backfill
+
+Implemented the macOS installer and stable runtime under Library/Application Support/Quarries, preserving personal Archive data across application upgrades and providing stable GUI and CLI launch paths.
+
+Related issue: #18
+
+---
+
