@@ -81,3 +81,14 @@ Related issue: #6
 
 ---
 
+
+## #7 — Build Watcher local AI research assistant
+
+**Status:** Completed — historical backfill
+
+Implemented the local Ollama-powered Watcher research assistant with huihui_ai/qwen3.5-abliterated:4b, gemma3:4b Reference Context support, Archive RAG retrieval, and Textual response-copy functionality.
+
+Related issue: #7
+
+---
+
