@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+
+      - name: Build Python distributions
+        run: python -m build
+
+      - name: Build source archive
+        run: |
+          git archive \
+            --format=zip \
+            --prefix="quarries-${GITHUB_REF_NAME}/" \
+            -o "quarries-${GITHUB_REF_NAME}.zip" \
+            HEAD
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/* \
+            "quarries-${GITHUB_REF_NAME}.zip" \
+            --title "Quarries $GITHUB_REF_NAME" \
+            --generate-notes
