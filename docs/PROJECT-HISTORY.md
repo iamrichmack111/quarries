@@ -246,3 +246,14 @@ Related issue: #21
 
 ---
 
+
+## #22 — Add tagged GitHub release automation
+
+**Status:** Completed — historical backfill
+
+Added automated release handling for v* Git tags, allowing tagged Quarries versions to produce GitHub Release artifacts.
+
+Related issue: #22
+
+---
+
