@@ -59,3 +59,14 @@ Related issue: #4
 
 ---
 
+
+## #5 — Add Hebrew-letter substitution and RTL 3-4-5 transformations
+
+**Status:** Completed — historical backfill
+
+Implemented Quarries-specific English-to-Hebrew-letter substitution and right-to-left 3-4-5 transformation functionality for Archive research.
+
+Related issue: #5
+
+---
+
