@@ -213,3 +213,14 @@ Related issue: #18
 
 ---
 
+
+## #19 — Containerize Quarries with Docker
+
+**Status:** Completed — historical backfill
+
+Added Docker deployment using Python 3.12 slim, a non-root runtime user, persistent application data, health checking, localhost-oriented port publishing, Docker Compose, Ollama host integration, and native build dependencies required by pyswisseph.
+
+Related issue: #19
+
+---
+
