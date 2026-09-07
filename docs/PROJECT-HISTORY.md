@@ -268,3 +268,14 @@ Related issue: #23
 
 ---
 
+
+## #24 — Create comprehensive Quarries README
+
+**Status:** Completed — historical backfill
+
+Expanded README.md into a complete project front page covering architecture, security, Archive, Watcher, Hebrew and Strong's research, Gematria, Observatory, Flask, Textual, macOS, Docker, GHCR, CI/CD, backup, privacy, and repository structure.
+
+Related issue: #24
+
+---
+
