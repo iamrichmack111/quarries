@@ -2,22 +2,36 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV="$ROOT/.venv"
+USER_BIN="$HOME/.local/bin"
 SYSTEM_BIN="/usr/local/bin"
 SYSTEM_MAN="/usr/local/share/man/man1"
-USER_BIN="$HOME/.local/bin"
-MAC_APP_SOURCE="$ROOT/Quarries.app"
+RUNTIME_ROOT=""
+VENV=""
 MAC_APP_DEST=""
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  RUNTIME_ROOT="$HOME/Library/Application Support/Quarries/runtime"
+  echo "Installing standalone macOS runtime to: $RUNTIME_ROOT"
+  rm -rf "$RUNTIME_ROOT"
+  mkdir -p "$RUNTIME_ROOT"
+  rsync -a \
+    --exclude='.git' --exclude='.venv' --exclude='Quarries.app' \
+    --exclude='release' --exclude='dist' --exclude='build' \
+    "$ROOT/" "$RUNTIME_ROOT/"
+else
+  RUNTIME_ROOT="$ROOT"
+fi
+
+VENV="$RUNTIME_ROOT/.venv"
 python3 -m venv "$VENV"
 "$VENV/bin/python" -m pip install --upgrade pip
-"$VENV/bin/python" -m pip install -e "$ROOT"
+"$VENV/bin/python" -m pip install "$RUNTIME_ROOT"
 
 TMP_LAUNCHER="$(mktemp)"
-cat > "$TMP_LAUNCHER" <<EOF
+cat > "$TMP_LAUNCHER" <<LAUNCHER
 #!/usr/bin/env bash
 exec "$VENV/bin/quarries" "\$@"
-EOF
+LAUNCHER
 chmod 0755 "$TMP_LAUNCHER"
 
 if mkdir -p "$SYSTEM_BIN" 2>/dev/null && install -m 0755 "$TMP_LAUNCHER" "$SYSTEM_BIN/quarries" 2>/dev/null; then
@@ -33,52 +47,46 @@ else
 fi
 rm -f "$TMP_LAUNCHER"
 
+# Explicit TUI launcher.
+TMP_TUI="$(mktemp)"
+cat > "$TMP_TUI" <<TUI
+#!/usr/bin/env bash
+exec "$VENV/bin/quarries-tui" "\$@"
+TUI
+chmod 0755 "$TMP_TUI"
+if [[ "$BIN_DEST" == /usr/local/bin/* ]]; then
+  if install -m 0755 "$TMP_TUI" "$SYSTEM_BIN/quarries-tui" 2>/dev/null; then :; else sudo install -m 0755 "$TMP_TUI" "$SYSTEM_BIN/quarries-tui"; fi
+else
+  install -m 0755 "$TMP_TUI" "$USER_BIN/quarries-tui"
+fi
+rm -f "$TMP_TUI"
+
 if [[ -f "$ROOT/man/quarries.1" ]]; then
-  if mkdir -p "$SYSTEM_MAN" 2>/dev/null && install -m 0644 "$ROOT/man/quarries.1" "$SYSTEM_MAN/quarries.1" 2>/dev/null; then
-    :
+  if mkdir -p "$SYSTEM_MAN" 2>/dev/null && install -m 0644 "$ROOT/man/quarries.1" "$SYSTEM_MAN/quarries.1" 2>/dev/null; then :
   elif command -v sudo >/dev/null 2>&1; then
-    sudo mkdir -p "$SYSTEM_MAN"
-    sudo install -m 0644 "$ROOT/man/quarries.1" "$SYSTEM_MAN/quarries.1"
+    sudo mkdir -p "$SYSTEM_MAN" && sudo install -m 0644 "$ROOT/man/quarries.1" "$SYSTEM_MAN/quarries.1"
   else
-    mkdir -p "$HOME/.local/share/man/man1"
-    install -m 0644 "$ROOT/man/quarries.1" "$HOME/.local/share/man/man1/quarries.1"
+    mkdir -p "$HOME/.local/share/man/man1" && install -m 0644 "$ROOT/man/quarries.1" "$HOME/.local/share/man/man1/quarries.1"
   fi
 fi
 
-if [[ "$(uname -s)" == "Darwin" && -d "$MAC_APP_SOURCE" ]]; then
-  if [[ -d "/Applications" && -w "/Applications" ]]; then
-    rm -rf "/Applications/Quarries.app"
-    cp -R "$MAC_APP_SOURCE" "/Applications/Quarries.app"
-    MAC_APP_DEST="/Applications/Quarries.app"
-  elif command -v sudo >/dev/null 2>&1; then
-    sudo rm -rf "/Applications/Quarries.app"
-    sudo cp -R "$MAC_APP_SOURCE" "/Applications/Quarries.app"
-    MAC_APP_DEST="/Applications/Quarries.app"
-  else
-    mkdir -p "$HOME/Applications"
-    rm -rf "$HOME/Applications/Quarries.app"
-    cp -R "$MAC_APP_SOURCE" "$HOME/Applications/Quarries.app"
-    MAC_APP_DEST="$HOME/Applications/Quarries.app"
-  fi
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  "$ROOT/scripts/build_macos_app.sh"
+  mkdir -p "$HOME/Applications"
+  rm -rf "$HOME/Applications/Quarries.app"
+  cp -R "$ROOT/Quarries.app" "$HOME/Applications/Quarries.app"
+  xattr -dr com.apple.quarantine "$HOME/Applications/Quarries.app" 2>/dev/null || true
+  touch "$HOME/Applications/Quarries.app"
+  MAC_APP_DEST="$HOME/Applications/Quarries.app"
 fi
 
 echo
-echo "Quarries installed."
-echo "Launcher: $BIN_DEST"
-if [[ -n "$MAC_APP_DEST" ]]; then
-  echo "macOS app: $MAC_APP_DEST"
-fi
+echo "Quarries v0.9.2 installed."
+echo "CLI: $BIN_DEST"
+[[ -n "$MAC_APP_DEST" ]] && echo "Desktop app: $MAC_APP_DEST"
+echo "Runtime: $RUNTIME_ROOT"
+echo "Personal data: $HOME/.local/share/quarries/archive.qry"
 echo
-echo "Install Ollama models:"
-echo "  ollama pull huihui_ai/qwen3.5-abliterated:4b"
-echo "  ollama pull gemma3:4b"
-echo "  ollama pull embeddinggemma"
-echo
-echo "Run from anywhere:"
-echo "  quarries"
-echo "Manual:"
-echo "  man quarries"
-echo
-echo "Your personal database is preserved at:"
-echo "  $HOME/.local/share/quarries/archive.qry"
-echo "Installing or upgrading Quarries does not delete it."
+echo "Launch GUI: quarries"
+echo "Launch TUI: quarries-tui"
+[[ -n "$MAC_APP_DEST" ]] && echo "Open desktop app: open '$MAC_APP_DEST'"
