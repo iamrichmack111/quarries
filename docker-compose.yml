@@ -1,0 +1,25 @@
+services:
+  quarries:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: quarries:local
+    container_name: quarries
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8787:8787"
+
+    environment:
+      QUARRIES_HOST: "0.0.0.0"
+      QUARRIES_PORT: "8787"
+      OLLAMA_HOST: "http://host.docker.internal:11434"
+
+    volumes:
+      - quarries-data:/home/quarries/.local/share/quarries
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  quarries-data:
