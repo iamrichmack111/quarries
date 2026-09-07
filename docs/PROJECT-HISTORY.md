@@ -136,3 +136,14 @@ Related issue: #11
 
 ---
 
+
+## #12 — Implement multi-method deterministic gematria calculator
+
+**Status:** Completed — historical backfill
+
+Implemented Hechrachi, Gadol, Siduri, Katan, Perati, Shemi, Musafi, Bone'eh, Kidmi, Ne'elam, Meshulash, Ha'achor, Katan Mispari, Kolel, AtBash, Albam, Ofanim, Avgad, and Reverse Avgad calculations. Arithmetic metadata such as prime factorization and digit reduction remains separately classified.
+
+Related issue: #12
+
+---
+
