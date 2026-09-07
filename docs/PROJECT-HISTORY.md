@@ -279,3 +279,14 @@ Related issue: #24
 
 ---
 
+
+## #25 — Initialize Quarries GitHub Wiki
+
+**Status:** Completed — historical backfill
+
+Published the Quarries GitHub Wiki with Home, Installation, Desktop App, Architecture, Security Model, Docker, CI/CD, Development, and Release Process documentation.
+
+Related issue: #25
+
+---
+
