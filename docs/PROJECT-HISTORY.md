@@ -70,3 +70,14 @@ Related issue: #5
 
 ---
 
+
+## #6 — Add semantic embeddings and RAG retrieval
+
+**Status:** Completed — historical backfill
+
+Added embeddinggemma-powered semantic retrieval, similar-Leaf search, RAG context generation, embedding model and dimensionality metadata, index versioning, and Archive re-index support.
+
+Related issue: #6
+
+---
+
