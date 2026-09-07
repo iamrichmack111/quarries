@@ -224,3 +224,14 @@ Related issue: #19
 
 ---
 
+
+## #20 — Publish Quarries containers to private GHCR
+
+**Status:** Completed — historical backfill
+
+Configured GitHub Actions to build and publish Quarries container images to the private ghcr.io/iamrichmack111/quarries package.
+
+Related issue: #20
+
+---
+
