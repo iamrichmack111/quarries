@@ -169,3 +169,14 @@ Related issue: #14
 
 ---
 
+
+## #15 — Convert Quarries to a Flask graphical interface
+
+**Status:** Completed — historical backfill
+
+Added the Flask graphical interface through quarries.webapp while preserving the original Textual TUI. Added templates, static frontend assets, localhost binding, browser launching, and shared access to existing Quarries functionality.
+
+Related issue: #15
+
+---
+
