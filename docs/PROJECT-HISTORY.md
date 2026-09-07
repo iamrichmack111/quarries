@@ -26,3 +26,14 @@ Related issue: #1
 
 ---
 
+
+## #2 — Implement independent Application Archive and Watcher security gates
+
+**Status:** Completed — historical backfill
+
+Implemented independent Application, Archive, and Watcher authentication gates. Application authentication does not implicitly unlock Archive or Watcher. Lock All clears active cryptographic keys and ephemeral Reference Context.
+
+Related issue: #2
+
+---
+
