@@ -21,12 +21,20 @@ def normalize_latin(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def normalize_hebrew(value: str) -> str:
+def strip_hebrew_marks(value: str) -> str:
+    """Remove Hebrew vowel points/cantillation while preserving consonantal letters.
+
+    Gematria is calculated from letters, so combining Hebrew marks are intentionally
+    excluded. The original pointed spelling is preserved elsewhere for display and
+    lexical context.
+    """
     value = unicodedata.normalize("NFD", value or "")
-    value = "".join(
-        ch for ch in value
-        if not unicodedata.combining(ch) and ch not in "־׃"
-    )
+    return "".join(ch for ch in value if not unicodedata.combining(ch))
+
+
+def normalize_hebrew(value: str) -> str:
+    value = strip_hebrew_marks(value)
+    value = "".join(ch for ch in value if ch not in "־׃")
     return re.sub(r"\s+", " ", value).strip()
 
 
@@ -179,3 +187,94 @@ class HebrewLexicon:
             f"[b]Lexicon / custom notes — preserved[/b]\n{row['notes'] or '—'}\n\n"
             "[dim]Lexical glosses are study aids; verse context and morphology determine translation.[/]"
         )
+
+    # ---- Tanakh / word-study integration ----
+    def books(self):
+        """Return Tanakh books in familiar canonical order."""
+        rows=self.conn.execute(
+            """SELECT book_code, book, MIN(id) AS first_id, MAX(chapter) AS chapters,
+                      COUNT(*) AS verses
+               FROM verses GROUP BY book_code, book"""
+        ).fetchall()
+        order=["Gen","Exod","Lev","Num","Deut","Josh","Judg","1Sam","2Sam","1Kgs","2Kgs",
+               "Isa","Jer","Ezek","Hos","Joel","Amos","Obad","Jonah","Mic","Nah","Hab","Zeph","Hag","Zech","Mal",
+               "Ps","Prov","Job","Song","Ruth","Lam","Eccl","Esth","Dan","Ezra","Neh","1Chr","2Chr"]
+        rank={code:i for i,code in enumerate(order)}
+        return sorted(rows,key=lambda r:(rank.get(r["book_code"],999),r["book"]))
+
+    def chapters(self, book_code: str):
+        return [int(r[0]) for r in self.conn.execute(
+            "SELECT DISTINCT chapter FROM verses WHERE book_code=? ORDER BY chapter", (book_code,)
+        ).fetchall()]
+
+    def chapter(self, book_code: str, chapter: int):
+        return self.conn.execute(
+            """SELECT id, book, book_code, chapter, verse, reference, hebrew, hebrew_norm, english
+               FROM verses WHERE book_code=? AND chapter=? ORDER BY verse""",
+            (book_code, int(chapter)),
+        ).fetchall()
+
+    def verse(self, verse_id: int):
+        return self.conn.execute("SELECT * FROM verses WHERE id=?", (int(verse_id),)).fetchone()
+
+    @staticmethod
+    def surface_candidates(surface: str) -> list[str]:
+        """Generate conservative lookup forms for a pointed/segmented biblical token."""
+        raw = normalize_hebrew(surface or "")
+        raw = raw.strip("[](){}.,;:!?\"'׳״* ")
+        forms: list[str] = []
+        def add(x: str):
+            x=(x or "").strip()
+            if x and x not in forms: forms.append(x)
+        add(raw)
+        add(raw.replace("/", ""))
+        parts=[p for p in raw.split("/") if p]
+        if parts:
+            add(parts[-1])
+            if len(parts)>1: add("".join(parts))
+        compact=raw.replace("/", "")
+        # Common attached conjunction/article/preposition candidates.  These are
+        # candidates only; callers display confidence rather than silently asserting a lemma.
+        for n in (1,2):
+            if len(compact)>n+1 and all(ch in "ובכלמהש" for ch in compact[:n]):
+                add(compact[n:])
+        return forms
+
+    def resolve_surface(self, surface: str, limit: int = 5):
+        """Rank Strong's candidates for a biblical surface form."""
+        forms=self.surface_candidates(surface)
+        seen: dict[int, tuple[float, sqlite3.Row, str]] = {}
+        for idx, form in enumerate(forms):
+            rows=self.search(form, limit=max(15, limit*3))
+            for rank,row in enumerate(rows):
+                target=normalize_hebrew(row["hebrew"] or row["lemma"] or "")
+                lemma=normalize_hebrew(row["lemma"] or row["hebrew"] or "")
+                ratio=max(_ratio(form,target),_ratio(form,lemma))
+                exact = form in (target, lemma)
+                score=(100.0 if exact else ratio) - idx*2.5 - rank*.15
+                prev=seen.get(int(row["id"]))
+                if prev is None or score>prev[0]: seen[int(row["id"])]=(score,row,form)
+        ranked=sorted(seen.values(),key=lambda x:(-x[0],x[1]["entry_no"] or 999999))[:limit]
+        return ranked
+
+    def occurrences(self, lemma_or_surface: str, limit: int = 24):
+        """Return verses containing the same normalized consonantal token/segment.
+
+        OSHB verse text uses ``/`` to segment prefixes/suffixes.  Matching complete
+        segments avoids the false positives caused by substring matching (for
+        example, a short lemma accidentally occurring inside a different word).
+        These are textual consonantal-form occurrences, not a claim that every hit
+        has the same lexical sense in context.
+        """
+        q=normalize_hebrew(lemma_or_surface or "").replace("/", "")
+        if not q:return []
+        rows=[]
+        for row in self.conn.execute(
+            "SELECT id,book,book_code,chapter,verse,reference,hebrew,hebrew_norm,english FROM verses ORDER BY id"
+        ):
+            hay=normalize_hebrew(row["hebrew_norm"] or "")
+            segments=[seg for seg in re.split(r"[\s/]+", hay) if seg]
+            if q in segments:
+                rows.append(row)
+                if len(rows)>=limit:break
+        return rows

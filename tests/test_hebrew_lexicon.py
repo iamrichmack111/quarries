@@ -1,5 +1,5 @@
 import unittest
-from quarries.hebrew_lexicon import HebrewLexicon, normalize_hebrew
+from quarries.hebrew_lexicon import HebrewLexicon, normalize_hebrew, strip_hebrew_marks
 
 
 class HebrewLexiconTests(unittest.TestCase):
@@ -16,6 +16,10 @@ class HebrewLexiconTests(unittest.TestCase):
 
     def test_niqqud_normalization(self):
         self.assertEqual(normalize_hebrew("בְּרָכָה"), normalize_hebrew("ברכה"))
+
+    def test_explicit_vowel_mark_removal(self):
+        self.assertEqual(strip_hebrew_marks("שָׁלוֹם"), "שלום")
+        self.assertEqual(normalize_hebrew("בְּרָכָה"), "ברכה")
 
     def test_strongs_exact(self):
         rows = self.lex.search("H1293")

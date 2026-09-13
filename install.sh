@@ -10,6 +10,15 @@ VENV=""
 MAC_APP_DEST=""
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
+  echo "Stopping an existing Quarries server, if present..."
+  OLD_PIDS="$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)"
+  for pid in $OLD_PIDS; do
+    cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+    if [[ "$cmd" == *"Quarries"* || "$cmd" == *"quarries"* ]]; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+  sleep 1
   RUNTIME_ROOT="$HOME/Library/Application Support/Quarries/runtime"
   echo "Installing standalone macOS runtime to: $RUNTIME_ROOT"
   rm -rf "$RUNTIME_ROOT"
@@ -72,27 +81,20 @@ fi
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   "$ROOT/scripts/build_macos_app.sh"
-  MAC_APP_DEST="/Applications/Quarries.app"
+  mkdir -p "$HOME/Applications"
+  MAC_APP_DEST="$HOME/Applications/Quarries.app"
   echo "Installing Quarries.app to: $MAC_APP_DEST"
-  if rm -rf "$MAC_APP_DEST" 2>/dev/null && cp -R "$ROOT/Quarries.app" "$MAC_APP_DEST" 2>/dev/null; then
-    :
-  elif command -v sudo >/dev/null 2>&1; then
-    sudo rm -rf "$MAC_APP_DEST"
-    sudo cp -R "$ROOT/Quarries.app" "$MAC_APP_DEST"
-    sudo chown -R "$USER":staff "$MAC_APP_DEST" 2>/dev/null || true
-  else
-    echo "Unable to install to /Applications without administrator privileges." >&2
-    exit 1
-  fi
+  rm -rf "$MAC_APP_DEST"
+  cp -R "$ROOT/Quarries.app" "$MAC_APP_DEST"
   xattr -cr "$MAC_APP_DEST" 2>/dev/null || true
-  chmod +x "$MAC_APP_DEST/Contents/MacOS/Quarries" 2>/dev/null || sudo chmod +x "$MAC_APP_DEST/Contents/MacOS/Quarries"
+  chmod +x "$MAC_APP_DEST/Contents/MacOS/quarries" 2>/dev/null || sudo chmod +x "$MAC_APP_DEST/Contents/MacOS/quarries"
   touch "$MAC_APP_DEST"
   LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
   [[ -x "$LSREGISTER" ]] && "$LSREGISTER" -f "$MAC_APP_DEST" >/dev/null 2>&1 || true
 fi
 
 echo
-echo "Quarries v0.9.3 installed."
+echo "Quarries v0.10.6 installed."
 echo "CLI: $BIN_DEST"
 [[ -n "$MAC_APP_DEST" ]] && echo "Desktop app: $MAC_APP_DEST"
 echo "Runtime: $RUNTIME_ROOT"

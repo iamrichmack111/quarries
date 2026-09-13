@@ -1,3 +1,15 @@
+# Quarries 0.10.6
+
+Word studies now visibly demonstrate vowel/cantillation removal before Gematria and make correlated Tanakh occurrence verses fully interactive. Occurrence matching now uses complete normalized consonantal segments and is explicitly described as a textual correlation rather than guaranteed lexical identity.
+
+# Quarries 0.10.6
+
+Adds an explicit vowel/mark-removal stage to Hebrew word analysis. Quarries preserves the original pointed Hebrew for reading and lexical context, displays the unpointed consonantal form, and clearly shows the exact text used for every Gematria method. This applies in both Tanakh Reader and weekly Parashah word studies and is included in saved full studies.
+
+# Quarries 0.10.4
+
+Quarries now includes an offline Hebrew/English Tanakh reader integrated with the existing Strong's, fuzzy Hebrew, Gematria, weekly Parashah, and local reference-dictionary tools. Selecting a biblical Hebrew word produces ranked lexical candidates, morphology, other biblical occurrences, all Gematria methods for both the surface form and best lemma, and the associated local reference entries for each value.
+
 # Quarries v0.9.1
 
 - Password entry for Archive and Watcher in the Flask GUI is now masked instead of using a visible-text browser prompt.
@@ -82,3 +94,6 @@ Release-ready documentation and installation packaging.
 - Added live Hebrew multi-method calculation.
 - Added CSV export for all method results.
 - Marked spelling-dependent Shemi/Ne'elam calculations explicitly.
+
+## Quarries 0.10.1
+This release connects Hebrew / Strong's, the Gematria Dictionary, and the weekly Parashah to one enriched Gematria pipeline. Every calculated method can display same-value entries from the local structured TorahCalc reference, including source PDF pages. Research entries can be saved to `~/.local/share/quarries/research/gematria-entries.jsonl`, while whole-Parashah runs are saved under `~/.local/share/quarries/research/parashah/`. Exponents use caret notation such as `2^2` for consistent rendering.

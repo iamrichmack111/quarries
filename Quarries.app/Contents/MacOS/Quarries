@@ -7,4 +7,15 @@ if [[ ! -x "$RUNTIME" ]]; then
 fi
 LOG="$HOME/Library/Logs/Quarries.log"
 mkdir -p "$(dirname "$LOG")"
+OLD_PIDS="$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)"
+for pid in $OLD_PIDS; do
+  cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  if [[ "$cmd" == *"Quarries"* || "$cmd" == *"quarries"* ]]; then
+    kill "$pid" 2>/dev/null || true
+  else
+    osascript -e 'display alert "Port 8787 is already in use" message "Another application is using Quarries port 8787. Close it and reopen Quarries." as critical'
+    exit 1
+  fi
+done
+sleep 0.5
 exec "$RUNTIME" >>"$LOG" 2>&1

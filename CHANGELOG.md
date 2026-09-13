@@ -1,3 +1,39 @@
+## 0.10.6 - 2026-09-13
+
+- Made pointed → unpointed Hebrew transformation prominent in every word study.
+- Labeled the exact consonantal form used for Gematria.
+- Tightened Tanakh occurrence matching from substring matching to complete normalized Hebrew segments.
+- Clarified that occurrence results are consonantal textual correlations, not guaranteed identical lexical senses.
+- Added pointed and unpointed Hebrew to occurrence results.
+- Made every Hebrew word in occurrence verses clickable for immediate Strong’s/fuzzy/Gematria analysis.
+- Reset the word-study pane to the top on each new analysis.
+
+## 0.10.6 - 2026-09-13
+
+- Added explicit Hebrew vowel/niqqud and cantillation removal to Tanakh and Parashah word studies.
+- Word Study now shows original pointed text, unpointed consonantal text, and the exact Gematria input.
+- Surface-form and lemma Gematria both use the displayed unpointed forms while preserving pointed text for Strong's/lexical research.
+- Saved full word studies include the vowel-removal transformation metadata.
+
+## 0.10.4 - 2026-09-13
+
+- Integrated the populated Hebrew Fuzzy Tanakh corpus directly into Quarries: 23,346 offline WLC Hebrew verses paired with public-domain JPS 1917 English.
+- Added a Tanakh Reader inside Hebrew / Strong's with book/chapter navigation and side-by-side Hebrew/English reading.
+- Made Tanakh Hebrew tokens clickable for combined fuzzy Strong's resolution, morphology, definitions, occurrence lookup, surface-form Gematria, lemma Gematria, and local number-reference correspondences.
+- Upgraded Parashah word clicks to use the same combined lexical + Gematria word-study pipeline.
+- Added ranked fuzzy lemma candidates rather than silently treating approximate matches as definitive.
+- Added local full word-study saving to `~/.local/share/quarries/research/word-studies.jsonl`.
+- Preserved all existing Quarries styling and the macOS `Quarries.app` launcher/install behavior.
+
+## 0.10.4 - 2026-09-13
+
+- Clean Sefaria HTML entities/non-breaking spaces before displaying weekly Hebrew text.
+- Render Parashah text as verse-numbered rows with clickable Hebrew words.
+- Save verse references with individual Parashah Gematria research entries.
+- Add previous/this/next week navigation and invalidate stale Parashah cache schema.
+- Expand Word Analysis to show all Gematria methods with local matching reference entries.
+- Preserve ASCII caret exponent formatting throughout analysis and exports.
+
 # Changelog
 
 All user-facing Quarries changes are recorded here from v0.9.1 onward.
@@ -70,3 +106,12 @@ All user-facing Quarries changes are recorded here from v0.9.1 onward.
 - Reworked `github_metadata.sh` to update topics through the GitHub API reliably.
 - Repository Wiki initialization remains part of the release workflow.
 
+
+## 0.10.1 - 2026-09-13
+- Added weekly Parashah tab using the existing Quarries visual system.
+- Added whole-portion Hebrew Gematria analysis with saved JSON research files.
+- Added all Gematria methods and local same-value reference entries to Strong's details.
+- Added batch/extract/number-analysis Gematria APIs and research JSONL saving.
+- Added all Gematria methods to saved Strong's CSV export.
+- Standardized prime exponents as ASCII caret notation (for example `2^2`).
+- Preserved the lowercase `Quarries.app/Contents/MacOS/quarries` launcher and user `~/Applications` installation path.

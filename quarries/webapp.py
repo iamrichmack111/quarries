@@ -16,12 +16,14 @@ from flask import Flask, Response, g, jsonify, render_template, request, send_fi
 
 from .cipher import ALPHABET_VERSION, encode_exact, group_345_rtl, normal_hebrew_view
 from .crypto import derive_key, decrypt_json, decrypt_text, encrypt_json, encrypt_text, make_verifier, password_matches
-from .gematria import breakdown, hebrew_numeral, method_results, mispar_gadol
-from .hebrew_lexicon import HebrewLexicon
+from .gematria import breakdown, factorization_text, hebrew_numeral, hebrew_words, method_results, mispar_gadol, reduction_chain
+from .hebrew_lexicon import HebrewLexicon, normalize_hebrew, strip_hebrew_marks
 from .observatory import HOUSE_SYSTEMS, SIDEREAL_MODES, calculate_chart, format_chart
 from .ollama_client import CHAT_MODEL, EMBED_INDEX_VERSION, EMBED_MODEL, REFERENCE_MODEL, chat as ollama_chat, embed as ollama_embed
 from .storage import Store
 from .torahcalc_reference import TorahCalcReference
+from .parashah import weekly_parashah
+from .research import analysis_record, enriched_methods, save_analysis, save_parashah_analysis, save_word_study
 
 HOST = os.getenv("QUARRIES_HOST", "127.0.0.1")
 PORT = int(os.getenv("QUARRIES_PORT", "8787"))
@@ -30,8 +32,22 @@ DEFAULT_AUTO_LOCK_SECONDS = 600
 MAX_RAG_CHUNKS = 6
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.secret_key = secrets.token_hex(32)
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict")
+
+@app.after_request
+def quarries_no_cache(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["X-Quarries-Version"] = "0.10.6"
+    return response
+
+@app.get("/api/version")
+def api_version():
+    return jsonify(ok=True, version="0.10.6")
+
 
 # Keys never go into cookies. They live only in process memory and are indexed by
 # a random browser session id. Closing/restarting Quarries destroys them.
@@ -297,10 +313,11 @@ def clear_reference():
 
 
 # ---------------- Hebrew ----------------
-def hebrow(row):
+def hebrow(row, enrich: bool = False):
     if row is None:return None
     heb=row["hebrew"] or row["lemma"] or ""
-    return {"id":row["id"],"strong_id":row["strong_id"],"entry_no":row["entry_no"],"hebrew":row["hebrew"],"lemma":row["lemma"],"pronunciation":row["pronunciation"],"transliteration":row["transliteration"],"morphology":row["morphology"],"language":row["language"],"gloss":row["gloss"],"definitions":row["definitions"],"notes":row["notes"],"mispar_gadol":mispar_gadol(heb),"breakdown":breakdown(heb),"methods":method_results(heb)}
+    methods=enriched_methods(heb, include_reference=True) if enrich else method_results(heb)
+    return {"id":row["id"],"strong_id":row["strong_id"],"entry_no":row["entry_no"],"hebrew":row["hebrew"],"lemma":row["lemma"],"pronunciation":row["pronunciation"],"transliteration":row["transliteration"],"morphology":row["morphology"],"language":row["language"],"gloss":row["gloss"],"definitions":row["definitions"],"notes":row["notes"],"mispar_gadol":mispar_gadol(heb),"breakdown":breakdown(heb),"methods":methods}
 
 @app.get("/api/hebrew/search")
 def hebrew_search():
@@ -312,9 +329,10 @@ def hebrew_search():
 def hebrew_detail(word_id):
     lex=HebrewLexicon()
     try:
-        row=lex.get_word(word_id); data=hebrow(row)
+        row=lex.get_word(word_id); data=hebrow(row, enrich=True)
         if not data:return jsonify(ok=False,error="Word not found."),404
-        matches=lex.gematria_matches(method_results(data["hebrew"] or data["lemma"] or "")[0]["value"],data["gloss"] or data["definitions"] or "",limit=8)
+        standard=next((m["value"] for m in data["methods"] if m["method"]=="Mispar Hechrachi"),0)
+        matches=lex.gematria_matches(standard,data["gloss"] or data["definitions"] or "",limit=8) if standard else []
         data["same_value"]=[hebrow(r) for r in matches if r["id"]!=word_id]
         return jsonify(ok=True,word=data)
     finally:lex.close()
@@ -337,39 +355,206 @@ def hebrew_remove_word(word_id): get_store().remove_hebrew_word(word_id); return
 
 @app.get("/api/hebrew/export")
 def hebrew_export():
-    lex=HebrewLexicon(); sio=io.StringIO(); w=csv.writer(sio); w.writerow(["Strong's","Hebrew","Lemma","Transliteration","Pronunciation","Morphology","Language","Gloss","Definitions","Notes","Mispar Gadol","Saved At"])
+    lex=HebrewLexicon(); sio=io.StringIO(); w=csv.writer(sio)
+    method_names=[m["method"] for m in method_results("אב")]
+    w.writerow(["Strong's","Hebrew","Lemma","Transliteration","Pronunciation","Morphology","Language","Gloss","Definitions","Notes",*method_names,"Saved At"])
     try:
         for x in get_store().list_saved_hebrew_words():
             r=lex.get_word(x["word_id"])
             if r:
-                heb=r["hebrew"] or r["lemma"] or ""; w.writerow([r["strong_id"],r["hebrew"],r["lemma"],r["transliteration"],r["pronunciation"],r["morphology"],r["language"],r["gloss"],r["definitions"],r["notes"],mispar_gadol(heb),x["saved_at"]])
+                heb=r["hebrew"] or r["lemma"] or ""; values={m["method"]:m["value"] for m in method_results(heb)}
+                w.writerow([r["strong_id"],r["hebrew"],r["lemma"],r["transliteration"],r["pronunciation"],r["morphology"],r["language"],r["gloss"],r["definitions"],r["notes"],*[values.get(n,"") for n in method_names],x["saved_at"]])
     finally:lex.close()
-    return Response(sio.getvalue(),mimetype="text/csv",headers={"Content-Disposition":"attachment; filename=quarries-hebrew-study.csv"})
+    return Response(sio.getvalue(),mimetype="text/csv",headers={"Content-Disposition":"attachment; filename=quarries-hebrew-study-all-gematria.csv"})
 
 @app.post("/api/gematria/calculate")
 def gematria_calculate():
     text=request.get_json(force=True).get("text","")
-    return jsonify(ok=True,text=text,mispar_gadol=mispar_gadol(text),breakdown=breakdown(text),methods=method_results(text))
+    return jsonify(ok=True,text=text,mispar_gadol=mispar_gadol(text),breakdown=breakdown(text),methods=enriched_methods(text, include_reference=True))
+
+@app.post("/api/gematria/batch")
+def gematria_batch():
+    d=request.get_json(force=True) or {}; texts=d.get("texts") or []
+    if isinstance(texts,str): texts=[x.strip() for x in texts.splitlines() if x.strip()]
+    texts=texts[:1000]
+    results=[]; collisions={}
+    for text in texts:
+        methods=enriched_methods(text, include_reference=bool(d.get("include_reference",True)))
+        results.append({"text":text,"methods":methods})
+        for m in methods:
+            collisions.setdefault(str(m["value"]),[]).append({"text":text,"method":m["method"]})
+    collisions={k:v for k,v in collisions.items() if len(v)>1}
+    return jsonify(ok=True,count=len(results),results=results,collisions=collisions)
+
+@app.post("/api/gematria/extract")
+def gematria_extract():
+    d=request.get_json(force=True) or {}; raw=d.get("text","")
+    words=[]; seen=set()
+    for word in hebrew_words(raw):
+        if word not in seen:
+            seen.add(word); words.append(word)
+    words=words[:1000]
+    results=[]; collisions={}
+    for word in words:
+        methods=enriched_methods(word, include_reference=bool(d.get("include_reference",True)))
+        results.append({"text":word,"methods":methods})
+        for m in methods:
+            collisions.setdefault(str(m["value"]),[]).append({"text":word,"method":m["method"]})
+    collisions={k:v for k,v in collisions.items() if len(v)>1}
+    return jsonify(ok=True,count=len(results),results=results,collisions=collisions)
+
+@app.post("/api/gematria/analyze-numbers")
+def gematria_analyze_numbers():
+    d=request.get_json(force=True) or {}; nums=d.get("numbers") or []
+    if isinstance(nums,(str,int)): nums=[nums]
+    out=[]
+    ref=TorahCalcReference()
+    try:
+        for raw in nums[:1000]:
+            try:n=int(raw)
+            except (TypeError,ValueError):continue
+            out.append({"value":n,"hebrew_numeral":hebrew_numeral(n),"factorization":factorization_text(n),"reduction_chain":reduction_chain(n),"reference_hits":[dict(r) for r in ref.lookup_value(n)]})
+    finally: ref.close()
+    return jsonify(ok=True,results=out)
+
+@app.post("/api/gematria/save")
+def gematria_save():
+    d=request.get_json(force=True) or {}; text=d.get("text","").strip()
+    if not text:return jsonify(ok=False,error="Hebrew text is required."),400
+    rec,path=save_analysis(text,d.get("source") or {"type":"manual"})
+    return jsonify(ok=True,path=str(path),record=rec)
 
 @app.post("/api/gematria/export")
 def gematria_export():
-    text=request.get_json(force=True).get("text",""); sio=io.StringIO(); w=csv.writer(sio); w.writerow(["Method","Hebrew Name","Value","Rule","Transformed"])
-    for x in method_results(text):w.writerow([x["method"],x["hebrew_name"],x["value"],x["rule"],x.get("transformed","")])
+    text=request.get_json(force=True).get("text",""); sio=io.StringIO(); w=csv.writer(sio); w.writerow(["Method","Hebrew Name","Value","Factorization","Reduction","Rule","Transformed","Reference PDF Pages","Reference Entries"])
+    for x in enriched_methods(text,include_reference=True):
+        refs=x.get("reference_hits",[]); w.writerow([x["method"],x["hebrew_name"],x["value"],x["factorization"]," > ".join(map(str,x["reduction_chain"])),x["rule"],x.get("transformed",""),"; ".join(str(r["source_page"]) for r in refs)," | ".join((r["body"] or "").replace("\n"," ") for r in refs)])
     return Response(sio.getvalue(),mimetype="text/csv",headers={"Content-Disposition":"attachment; filename=quarries-gematria-methods.csv"})
 
+
+
+# ---------------- Tanakh reader / fuzzy word study ----------------
+@app.get("/api/tanakh/books")
+def tanakh_books():
+    lex=HebrewLexicon()
+    try:
+        books=[{"book_code":r["book_code"],"book":r["book"],"chapters":r["chapters"],"verses":r["verses"]} for r in lex.books()]
+        return jsonify(ok=True,books=books)
+    finally:lex.close()
+
+@app.get("/api/tanakh/chapters/<book_code>")
+def tanakh_chapters(book_code):
+    lex=HebrewLexicon()
+    try:return jsonify(ok=True,book_code=book_code,chapters=lex.chapters(book_code))
+    finally:lex.close()
+
+@app.get("/api/tanakh/chapter/<book_code>/<int:chapter>")
+def tanakh_chapter(book_code,chapter):
+    lex=HebrewLexicon()
+    try:
+        rows=lex.chapter(book_code,chapter)
+        return jsonify(ok=True,book_code=book_code,chapter=chapter,verses=[dict(r) for r in rows])
+    finally:lex.close()
+
+@app.post("/api/tanakh/word-study")
+def tanakh_word_study():
+    d=request.get_json(force=True) or {}
+    surface=(d.get("word") or "").strip(); verse_ref=(d.get("reference") or "").strip()
+    if not surface:return jsonify(ok=False,error="Hebrew word is required."),400
+    lex=HebrewLexicon()
+    try:
+        ranked=lex.resolve_surface(surface,limit=5)
+        candidates=[]
+        for score,row,matched_form in ranked:
+            item=hebrow(row,enrich=False)
+            item["confidence"]=round(max(0.0,min(100.0,score)),1)
+            item["matched_form"]=matched_form
+            candidates.append(item)
+        best_row=ranked[0][1] if ranked else None
+        lemma=(best_row["lemma"] or best_row["hebrew"] or "") if best_row else ""
+        surface_unpointed=normalize_hebrew(surface)
+        surface_calc=surface_unpointed.replace("/","")
+        lemma_unpointed=normalize_hebrew(lemma) if lemma else ""
+        lemma_calc=lemma_unpointed.replace("/","")
+        surface_methods=enriched_methods(surface_calc,include_reference=True)
+        lemma_methods=enriched_methods(lemma_calc,include_reference=True) if lemma_calc else []
+        occurrence_term=lemma_calc or surface_calc
+        occurrences=[]
+        for r in lex.occurrences(occurrence_term,limit=24):
+            item=dict(r)
+            item["hebrew_unpointed"]=normalize_hebrew(item.get("hebrew") or "")
+            item["match_term"]=occurrence_term
+            item["match_kind"]="same normalized consonantal token"
+            occurrences.append(item)
+        return jsonify(ok=True,
+                       surface=surface,
+                       surface_pointed=surface,
+                       surface_unpointed=surface_unpointed,
+                       surface_normalized=surface_calc,
+                       lemma_pointed=lemma,
+                       lemma_unpointed=lemma_unpointed,
+                       lemma_normalized=lemma_calc,
+                       vowel_removal={
+                           "surface_original": surface,
+                           "surface_without_marks": surface_unpointed,
+                           "surface_gematria_input": surface_calc,
+                           "lemma_original": lemma,
+                           "lemma_without_marks": lemma_unpointed,
+                           "lemma_gematria_input": lemma_calc,
+                           "note": "Hebrew vowel points and cantillation marks are removed before Gematria calculation."
+                       },
+                       reference=verse_ref,
+                       candidates=candidates,best=candidates[0] if candidates else None,
+                       surface_methods=surface_methods,lemma_methods=lemma_methods,occurrences=occurrences)
+    finally:lex.close()
+
+@app.post("/api/research/word-study")
+def research_word_study():
+    d=request.get_json(force=True) or {}
+    if not (d.get("surface") or "").strip():return jsonify(ok=False,error="Word study is empty."),400
+    path=save_word_study(d)
+    return jsonify(ok=True,path=str(path))
+
+# ---------------- Weekly Parashah ----------------
+@app.get("/api/parashah/week")
+def parashah_week():
+    raw = (request.args.get("date") or "").strip()
+    on_date = None
+    if raw:
+        try:
+            on_date = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify(ok=False, error="date must use YYYY-MM-DD"), 400
+    return jsonify(ok=True, parashah=weekly_parashah(on_date))
+
+@app.post("/api/parashah/analyze")
+def parashah_analyze():
+    d=request.get_json(force=True) or {}
+    p=d.get("parashah") or weekly_parashah(); text=d.get("text") or p.get("hebrew_text") or ""
+    words=[]; seen=set()
+    for word in hebrew_words(text):
+        if word not in seen:
+            seen.add(word); words.append(word)
+    limit=max(1,min(int(d.get("limit",500)),1000)); words=words[:limit]
+    results=[]
+    for word in words:
+        results.append({"text":word,"methods":enriched_methods(word, include_reference=True)})
+    payload={"saved_at":now_iso(),"parashah":p,"word_count":len(results),"results":results}
+    path=save_parashah_analysis(p.get("title","parashah"),p.get("date",""),payload)
+    return jsonify(ok=True,path=str(path),word_count=len(results),results=results,parashah=p)
 
 # ---------------- Gematria Dictionary ----------------
 @app.get("/api/dictionary/value/<int:value>")
 def dictionary_value(value):
     ref=TorahCalcReference()
     try:
-        rows=ref.lookup_value(value); return jsonify(ok=True,results=[dict(r) for r in rows])
+        rows=ref.lookup_value(value); return jsonify(ok=True,results=[dict(r) | {"factorization":factorization_text(value),"reduction_chain":reduction_chain(value)} for r in rows])
     finally:ref.close()
 
 @app.get("/api/dictionary/search")
 def dictionary_search():
     ref=TorahCalcReference()
-    try:return jsonify(ok=True,results=[dict(r) for r in ref.search_text(request.args.get("q",""),limit=60)])
+    try:return jsonify(ok=True,results=[dict(r) | {"factorization":factorization_text(int(r["value"])),"reduction_chain":reduction_chain(int(r["value"]))} for r in ref.search_text(request.args.get("q",""),limit=60)])
     finally:ref.close()
 
 @app.get("/api/dictionary/related/<int:section_id>")
