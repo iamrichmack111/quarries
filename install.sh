@@ -94,7 +94,7 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
 fi
 
 echo
-echo "Quarries v0.10.6 installed."
+echo "Quarries v0.10.7 installed."
 echo "CLI: $BIN_DEST"
 [[ -n "$MAC_APP_DEST" ]] && echo "Desktop app: $MAC_APP_DEST"
 echo "Runtime: $RUNTIME_ROOT"

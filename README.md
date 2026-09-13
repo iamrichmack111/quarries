@@ -15,6 +15,10 @@
 
 Quarries is a private local research workspace combining an encrypted personal Archive, a Flask desktop/web GUI, an optional Textual terminal UI, local Ollama inference and semantic retrieval, a preserved Hebrew/Strong's lexical database, multi-method gematria, a TorahCalc-derived local reference, and a Swiss Ephemeris Observatory.
 
+## v0.10.7 — Sefaria Online Research
+
+Optional online discovery now supports direct Sefaria references, topics/mitzvah research, daily learning schedules such as Daf Yomi, related texts, manuscript witnesses, browser-to-app deep links, and exportable study packages. Fetched Hebrew/Aramaic still uses Quarries' local analysis engine, while the existing offline Tanakh and reference databases remain unchanged.
+
 ## Architecture
 
 ![Quarries architecture](docs/architecture.svg)

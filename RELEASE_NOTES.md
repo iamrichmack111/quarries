@@ -1,3 +1,7 @@
+# Quarries 0.10.7
+
+Adds an optional Sefaria Online research layer without replacing Quarries' offline core. Fetch a reference or topic, open daily study/Daf Yomi items, explore related texts and manuscript witnesses, click Hebrew/Aramaic words for the same local Quarries analysis, export the full study with manuscript images, and deep-link browser results back into Quarries.app using `quarries://`.
+
 # Quarries 0.10.6
 
 Word studies now visibly demonstrate vowel/cantillation removal before Gematria and make correlated Tanakh occurrence verses fully interactive. Occurrence matching now uses complete normalized consonantal segments and is explicitly described as a textual correlation rather than guaranteed lexical identity.

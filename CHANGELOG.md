@@ -1,3 +1,14 @@
+## 0.10.7 - 2026-09-13
+
+- Added Sefaria Online mode alongside the offline Strong's/Tanakh tools.
+- Added direct Sefaria reference loading for Tanakh, Talmud, Mishnah, commentary, and other supported texts.
+- Added Sefaria topic search, topic-source browsing, and daily/weekly learning schedule retrieval including Daf Yomi when returned by Sefaria.
+- Added Related-source browsing and manuscript lookup with manuscript image previews when available.
+- Kept all fetched Hebrew/Aramaic words clickable through the local Quarries vowel-removal, fuzzy lexical, Gematria, and reference-entry analysis pipeline.
+- Added downloadable ZIP study packages containing Markdown, JSON, manuscript metadata, and available manuscript images.
+- Registered the `quarries://` macOS URL scheme so browser links can reopen a Sefaria reference directly in Quarries.app.
+- Offline Tanakh, Strong's, Gematria, Parashah cache, and saved research remain available without Sefaria connectivity.
+
 ## 0.10.6 - 2026-09-13
 
 - Made pointed → unpointed Hebrew transformation prominent in every word study.

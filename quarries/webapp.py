@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import csv
 import io
+import json
+import zipfile
 import os
 import secrets
 import threading
@@ -24,6 +26,7 @@ from .storage import Store
 from .torahcalc_reference import TorahCalcReference
 from .parashah import weekly_parashah
 from .research import analysis_record, enriched_methods, save_analysis, save_parashah_analysis, save_word_study
+from .sefaria_online import SefariaClient, SefariaError, manuscript_image_urls, version_text
 
 HOST = os.getenv("QUARRIES_HOST", "127.0.0.1")
 PORT = int(os.getenv("QUARRIES_PORT", "8787"))
@@ -41,12 +44,12 @@ def quarries_no_cache(response):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
-    response.headers["X-Quarries-Version"] = "0.10.6"
+    response.headers["X-Quarries-Version"] = "0.10.7"
     return response
 
 @app.get("/api/version")
 def api_version():
-    return jsonify(ok=True, version="0.10.6")
+    return jsonify(ok=True, version="0.10.7")
 
 
 # Keys never go into cookies. They live only in process memory and are indexed by
@@ -514,6 +517,85 @@ def research_word_study():
     if not (d.get("surface") or "").strip():return jsonify(ok=False,error="Word study is empty."),400
     path=save_word_study(d)
     return jsonify(ok=True,path=str(path))
+
+# ---------------- Sefaria online research ----------------
+def _sefaria_error(exc):
+    return jsonify(ok=False,error=str(exc),online=True),502
+
+@app.get("/api/sefaria/text")
+def sefaria_text():
+    tref=(request.args.get("ref") or "").strip()
+    try:
+        payload=SefariaClient().text(tref)
+        he=version_text(payload,"hebrew"); en=version_text(payload,"english")
+        n=max(len(he),len(en))
+        segments=[{"index":i+1,"hebrew":he[i] if i<len(he) else "","english":en[i] if i<len(en) else ""} for i in range(n)]
+        return jsonify(ok=True,reference=tref,segments=segments,raw=payload)
+    except SefariaError as exc:return _sefaria_error(exc)
+
+@app.get("/api/sefaria/calendars")
+def sefaria_calendars():
+    try:
+        y=request.args.get("year",type=int); m=request.args.get("month",type=int); d=request.args.get("day",type=int)
+        return jsonify(ok=True,calendar=SefariaClient().calendars(y,m,d,1))
+    except SefariaError as exc:return _sefaria_error(exc)
+
+@app.get("/api/sefaria/topics")
+def sefaria_topics():
+    try:return jsonify(ok=True,results=SefariaClient().topics(request.args.get("q",""),request.args.get("limit",30,type=int)))
+    except SefariaError as exc:return _sefaria_error(exc)
+
+@app.get("/api/sefaria/topic/<slug>")
+def sefaria_topic(slug):
+    try:return jsonify(ok=True,topic=SefariaClient().topic(slug))
+    except SefariaError as exc:return _sefaria_error(exc)
+
+@app.get("/api/sefaria/related")
+def sefaria_related():
+    try:return jsonify(ok=True,related=SefariaClient().related(request.args.get("ref","")))
+    except SefariaError as exc:return _sefaria_error(exc)
+
+@app.get("/api/sefaria/manuscripts")
+def sefaria_manuscripts():
+    try:
+        data=SefariaClient().manuscripts(request.args.get("ref",""))
+        return jsonify(ok=True,manuscripts=data,image_urls=manuscript_image_urls(data))
+    except SefariaError as exc:return _sefaria_error(exc)
+
+@app.post("/api/sefaria/export")
+def sefaria_export():
+    d=request.get_json(force=True) or {}; tref=(d.get("reference") or "").strip()
+    if not tref:return jsonify(ok=False,error="Reference is required."),400
+    analysis=d.get("analysis") or {}; include_images=bool(d.get("include_images",True))
+    try:
+        client=SefariaClient(); text=client.text(tref); manuscripts=client.manuscripts(tref) if include_images else []
+    except SefariaError as exc:return _sefaria_error(exc)
+    he=version_text(text,"hebrew"); en=version_text(text,"english")
+    report=[f"# Quarries Sefaria Study — {tref}","",f"Source: Sefaria · exported {now_iso()}",""]
+    for i in range(max(len(he),len(en))):
+        report += [f"## Segment {i+1}", he[i] if i<len(he) else "", "", en[i] if i<len(en) else "", ""]
+    if analysis:
+        report += ["## Quarries Analysis","","```json",json.dumps(analysis,ensure_ascii=False,indent=2),"```",""]
+    manifest={"reference":tref,"exported_at":now_iso(),"source":"Sefaria","text":text,"analysis":analysis,"manuscripts":manuscripts}
+    bio=io.BytesIO()
+    with zipfile.ZipFile(bio,"w",zipfile.ZIP_DEFLATED) as z:
+        z.writestr("analysis.md","\n".join(report)); z.writestr("analysis.json",json.dumps(manifest,ensure_ascii=False,indent=2))
+        z.writestr("manuscripts.json",json.dumps(manuscripts,ensure_ascii=False,indent=2))
+        if include_images:
+            import httpx
+            for idx,url in enumerate(manuscript_image_urls(manuscripts)[:20],1):
+                try:
+                    r=httpx.get(url,timeout=20,follow_redirects=True,headers={"User-Agent":"Quarries/0.10.7"}); r.raise_for_status()
+                    ctype=r.headers.get("content-type","").lower(); ext=".jpg"
+                    if "png" in ctype:ext=".png"
+                    elif "webp" in ctype:ext=".webp"
+                    elif "jpeg" in ctype or "jpg" in ctype:ext=".jpg"
+                    z.writestr(f"manuscripts/manuscript-{idx:02d}{ext}",r.content)
+                except Exception as exc:
+                    z.writestr(f"manuscripts/manuscript-{idx:02d}-ERROR.txt",f"{url}\n{exc}\n")
+    bio.seek(0)
+    safe="".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in tref)[:80] or "sefaria-study"
+    return send_file(bio,mimetype="application/zip",as_attachment=True,download_name=f"quarries-{safe}.zip")
 
 # ---------------- Weekly Parashah ----------------
 @app.get("/api/parashah/week")

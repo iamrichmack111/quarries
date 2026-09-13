@@ -15,6 +15,21 @@ if [[ ! -x "$RUNTIME" ]]; then
 fi
 LOG="$HOME/Library/Logs/Quarries.log"
 mkdir -p "$(dirname "$LOG")"
+DEEPLINK="${1:-}"
+if [[ "$DEEPLINK" == quarries://* ]]; then
+  ENCODED="$(/usr/bin/python3 - "$DEEPLINK" <<'PY'
+import sys, urllib.parse
+print(urllib.parse.quote(sys.argv[1], safe=''))
+PY
+)"
+  PID="$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null | head -1 || true)"
+  if [[ -z "$PID" ]]; then
+    QUARRIES_OPEN_BROWSER=0 "$RUNTIME" >>"$LOG" 2>&1 &
+    for _ in {1..30}; do lsof -tiTCP:8787 -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 0.2; done
+  fi
+  open "http://127.0.0.1:8787/?deeplink=$ENCODED"
+  exit 0
+fi
 OLD_PIDS="$(lsof -tiTCP:8787 -sTCP:LISTEN 2>/dev/null || true)"
 for pid in $OLD_PIDS; do
   cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
@@ -41,8 +56,12 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>Quarries</string>
   <key>CFBundleDisplayName</key><string>Quarries</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.10.6</string>
-  <key>CFBundleVersion</key><string>0.10.6</string>
+  <key>CFBundleShortVersionString</key><string>0.10.7</string>
+  <key>CFBundleVersion</key><string>0.10.7</string>
+  <key>CFBundleURLTypes</key><array><dict>
+    <key>CFBundleURLName</key><string>com.richmack.quarries.sefaria</string>
+    <key>CFBundleURLSchemes</key><array><string>quarries</string></array>
+  </dict></array>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
