@@ -11,9 +11,9 @@ import httpx
 from .storage import DATA_DIR
 
 CACHE = DATA_DIR / "parashah-cache.json"
-CACHE_SCHEMA = 3
+CACHE_SCHEMA = 5
 HEBCAL = "https://www.hebcal.com/hebcal"
-SEFARIA = "https://www.sefaria.org/api/texts/"
+SEFARIA = "https://www.sefaria.org/api/v3/texts/"
 
 
 def _next_saturday(today: date) -> date:
@@ -79,20 +79,91 @@ def _verse_refs(ref: str, count: int) -> list[str]:
 
 
 def _fetch_hebrew_text(ref: str) -> dict:
+    """Fetch one or more Torah ranges from Sefaria Texts API v3.
+
+    Hebcal may return festival readings such as:
+        Leviticus 22:26-23:44; Numbers 29:12-16
+
+    Sefaria expects those to be separate API requests.
+    """
     if not ref:
         return {"text": "", "verses": []}
-    url = SEFARIA + quote(ref.replace(" ", "_"), safe="_:-")
-    r = httpx.get(url, params={"lang": "he", "context": 0}, timeout=12.0, follow_redirects=True)
-    r.raise_for_status()
-    data = r.json()
-    raw = data.get("he") or data.get("text") or ""
-    parts = _flatten_strings(raw)
-    refs = _verse_refs(ref, len(parts))
-    verses = [
-        {"ref": refs[i] if i < len(refs) else f"Verse {i + 1}", "number": i + 1, "text": text}
-        for i, text in enumerate(parts)
-    ]
-    return {"text": " ".join(parts), "verses": verses}
+
+    ranges = [x.strip() for x in ref.split(";") if x.strip()]
+    all_parts: list[str] = []
+    all_verses: list[dict] = []
+
+    for subref in ranges:
+        url = SEFARIA + quote(subref, safe="")
+
+        r = httpx.get(
+            url,
+            params={
+                "version": "source",
+                "return_format": "text_only",
+                "fill_in_missing_segments": "1",
+            },
+            timeout=20.0,
+            follow_redirects=True,
+            headers={"User-Agent": "Quarries/0.10.7"},
+        )
+        r.raise_for_status()
+
+        data = r.json()
+        versions = data.get("versions") or []
+
+        if not versions:
+            raise RuntimeError(
+                f"Sefaria returned no source-language version for {subref!r}"
+            )
+
+        version = next(
+            (
+                v for v in versions
+                if isinstance(v, dict)
+                and (v.get("isSource") or v.get("isPrimary"))
+            ),
+            versions[0],
+        )
+
+        raw = version.get("text") or ""
+        parts = _flatten_strings(raw)
+
+        if not parts:
+            raise RuntimeError(
+                f"Sefaria returned empty source text for {subref!r}"
+            )
+
+        # Sefaria v3 commonly supplies exact segment references here.
+        exact_refs = data.get("sectionRef") or data.get("refs") or []
+
+        if isinstance(exact_refs, str):
+            exact_refs = []
+
+        # Fall back to our local reference generator.
+        if not isinstance(exact_refs, list) or len(exact_refs) != len(parts):
+            exact_refs = _verse_refs(subref, len(parts))
+
+        for i, text in enumerate(parts):
+            verse_ref = (
+                exact_refs[i]
+                if i < len(exact_refs)
+                else f"{subref} · {i + 1}"
+            )
+
+            all_verses.append({
+                "ref": verse_ref,
+                "number": len(all_verses) + 1,
+                "text": text,
+                "portion_ref": subref,
+            })
+
+        all_parts.extend(parts)
+
+    return {
+        "text": " ".join(all_parts),
+        "verses": all_verses,
+    }
 
 
 def _sanitize_cached(cached: dict) -> dict:
