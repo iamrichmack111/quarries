@@ -30,10 +30,15 @@ class SefariaClient:
     def _get(self, path: str, params: dict | None = None) -> dict | list:
         url = BASE + path
         try:
-            with httpx.Client(timeout=self.timeout, follow_redirects=True, headers={"User-Agent": "Quarries/0.10.7"}) as client:
-                r = client.get(url, params=params)
-                r.raise_for_status()
-                return r.json()
+            r = httpx.get(
+                url,
+                params=params,
+                timeout=max(self.timeout, 30.0),
+                follow_redirects=True,
+                headers={"User-Agent": "Quarries/0.10.7"},
+            )
+            r.raise_for_status()
+            return r.json()
         except Exception as exc:
             raise SefariaError(f"Sefaria request failed: {exc}") from exc
 
