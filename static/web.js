@@ -1,4 +1,4 @@
-let STATUS={}, currentLeaf=null, currentChat=null, currentHebrew=null, currentDict=null, currentParashahAnalysis=null, passwordModalResolver=null;
+let STATUS={}, currentLeaf=null, currentChat=null, currentHebrew=null, currentDict=null, currentParashahAnalysis=null, currentSefariaAnalysis=null, passwordModalResolver=null;
 const $=id=>document.getElementById(id); const esc=s=>(s??'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(url,opt={}){document.body.classList.add('busy');try{let r=await fetch(url,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});let ct=r.headers.get('content-type')||'';if(!ct.includes('json'))return r;let j=await r.json();if(!r.ok)throw new Error(j.error||'Request failed');return j}finally{document.body.classList.remove('busy')}}
 function post(url,data={}){return api(url,{method:'POST',body:JSON.stringify(data)})}function del(url){return api(url,{method:'DELETE'})}
@@ -87,7 +87,7 @@ boot();
 let currentSefariaRef='',currentSefariaPayload=null,currentSefariaWordStudy=null;
 function sefariaWordMarkup(text,ref){return cleanEntityArtifacts(text).split(/\s+/).filter(Boolean).map(raw=>{let w=raw.replace(/[׃־]/g,'').trim();return `<button type="button" class="hebrew-word sefaria-word" data-word="${esc(w)}" data-ref="${esc(ref||'')}">${esc(raw)}</button>`}).join(' ')}
 function bindSefariaWords(){document.querySelectorAll('#sefaria-text .sefaria-word').forEach(el=>el.onclick=()=>analyzeSefariaWord(el.dataset.word||'',el.dataset.ref||'',el))}
-async function loadSefariaRef(ref=''){ref=(ref||$('sefaria-ref').value||'').trim();if(!ref)return;$('sefaria-ref').value=ref;$('sefaria-status').textContent='Fetching '+ref+' from Sefaria…';try{let j=await api('/api/sefaria/text?ref='+encodeURIComponent(ref));currentSefariaRef=ref;currentSefariaPayload=j;$('sefaria-text-title').textContent='SEFARIA · '+ref;let seg=j.segments||[];$('sefaria-text').innerHTML=seg.length?seg.map(x=>`<div class="sefaria-segment"><div class="online-badge">${esc(ref)} · ${x.index}</div><div class="hebrew">${sefariaWordMarkup(x.hebrew||'',ref)}</div><div class="tanakh-english">${esc(x.english||'')}</div></div>`).join(''):'<p class="muted">No text segments returned.</p>';bindSefariaWords();$('sefaria-status').textContent='Loaded from Sefaria. Word analysis runs locally.';$('sefaria-manuscripts').innerHTML='';$('sefaria-word-study').innerHTML='<p class="muted">Click any Hebrew/Aramaic word to analyze it with Quarries.</p>'}catch(e){$('sefaria-status').textContent=e.message}}
+async function loadSefariaRef(ref=''){ref=(ref||$('sefaria-ref').value||'').trim();if(!ref)return;$('sefaria-ref').value=ref;$('sefaria-status').textContent='Fetching '+ref+' from Sefaria…';try{let j=await api('/api/sefaria/text?ref='+encodeURIComponent(ref));currentSefariaRef=ref;currentSefariaPayload=j;currentSefariaAnalysis=null;$('sefaria-text-title').textContent='SEFARIA · '+ref;let seg=j.segments||[];$('sefaria-text').innerHTML=seg.length?seg.map(x=>`<div class="sefaria-segment"><div class="online-badge">${esc(ref)} · ${x.index}</div><div class="hebrew">${sefariaWordMarkup(x.hebrew||'',ref)}</div><div class="tanakh-english">${esc(x.english||'')}</div></div>`).join(''):'<p class="muted">No text segments returned.</p>';bindSefariaWords();$('sefaria-status').textContent='Loaded from Sefaria. Word analysis runs locally.';$('sefaria-manuscripts').innerHTML='';$('sefaria-word-study').innerHTML='<p class="muted">Click any Hebrew/Aramaic word to analyze it with Quarries.</p>'}catch(e){$('sefaria-status').textContent=e.message}}
 async function analyzeSefariaWord(word,ref,el=null){document.querySelectorAll('#sefaria-text .hebrew-word.selected').forEach(x=>x.classList.remove('selected'));if(el)el.classList.add('selected');$('sefaria-word-study').innerHTML='<p class="muted">Removing marks, resolving local lexical candidates, and calculating all Gematria methods…</p>';try{let j=await post('/api/tanakh/word-study',{word,reference:ref||currentSefariaRef});currentSefariaWordStudy=j;currentTanakhWordStudy=j;renderWordStudy(j,'sefaria-word-study')}catch(e){$('sefaria-word-study').textContent=e.message}}
 async function searchSefariaTopics(){let q=$('sefaria-topic-q').value.trim();if(!q)return;$('sefaria-discovery').innerHTML='<p class="muted">Searching Sefaria topics…</p>';try{let j=await api('/api/sefaria/topics?q='+encodeURIComponent(q));$('sefaria-discovery').innerHTML=(j.results||[]).map(t=>`<div class="list-item" onclick="openSefariaTopic('${String(t.slug||'').replace(/'/g,"\\'")}')"><b>${esc(t.primaryTitle?.en||t.primaryTitle||t.slug||'Topic')}</b><div class="sub">${esc(t.slug||'')}</div></div>`).join('')||'<p class="muted">No matching topics found.</p>'}catch(e){$('sefaria-discovery').textContent=e.message}}
 function collectRefs(x,out=[]){if(Array.isArray(x)){x.forEach(y=>collectRefs(y,out));return out}if(x&&typeof x==='object'){Object.entries(x).forEach(([k,v])=>{if((k==='ref'||k==='tref')&&typeof v==='string')out.push(v);collectRefs(v,out)});}return [...new Set(out)]}
@@ -95,9 +95,250 @@ async function openSefariaTopic(slug){$('sefaria-status').textContent='Loading t
 async function loadSefariaDaily(){ $('sefaria-discovery').innerHTML='<p class="muted">Loading today’s Sefaria learning schedules…</p>';try{let j=await api('/api/sefaria/calendars');let items=j.calendar?.calendar_items||j.calendar?.calendarItems||[];if(!Array.isArray(items))items=[];$('sefaria-discovery').innerHTML=items.map(x=>{let ref=x.ref||x.displayValue?.en||x.title?.en||'';let title=x.title?.en||x.title||x.displayValue?.en||ref||'Daily Study';return `<div class="list-item" ${ref?`onclick='loadSefariaRef(${JSON.stringify(ref)})'`:''}><b>${esc(title)}</b><div class="sub">${esc(ref)}</div></div>`}).join('')||`<pre>${esc(JSON.stringify(j.calendar,null,2))}</pre>`;$('sefaria-status').textContent='Daily/weekly learning schedule loaded.'}catch(e){$('sefaria-status').textContent=e.message}}
 async function loadSefariaRelated(){if(!currentSefariaRef)return;$('sefaria-discovery').innerHTML='<p class="muted">Loading related texts, topics, media, and links…</p>';try{let j=await api('/api/sefaria/related?ref='+encodeURIComponent(currentSefariaRef));let refs=collectRefs(j.related).slice(0,120);$('sefaria-discovery').innerHTML=`<div class="list-item"><b>Related to ${esc(currentSefariaRef)}</b><div class="sub">${refs.length} linked refs</div></div>`+refs.map(r=>`<div class="list-item" onclick='loadSefariaRef(${JSON.stringify(r)})'>${esc(r)}</div>`).join('')}catch(e){$('sefaria-discovery').textContent=e.message}}
 async function loadSefariaManuscripts(){if(!currentSefariaRef)return;$('sefaria-status').textContent='Loading manuscript witnesses…';try{let j=await api('/api/sefaria/manuscripts?ref='+encodeURIComponent(currentSefariaRef));let urls=j.image_urls||[];$('sefaria-manuscripts').innerHTML=urls.length?urls.map((u,i)=>`<div class="manuscript-card"><div class="online-badge">MANUSCRIPT ${i+1}</div><a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Manuscript witness ${i+1}" loading="lazy"></a><div class="button-row"><a class="button" href="${esc(u)}" target="_blank" rel="noopener">Open Image</a></div></div>`).join(''):'<p class="muted">No manuscript image URLs were returned for this reference.</p>';$('sefaria-status').textContent=urls.length?`${urls.length} manuscript image(s) found. Export Study + Images will package them.`:'No manuscript images found for this reference.'}catch(e){$('sefaria-status').textContent=e.message}}
-async function downloadSefariaStudy(includeImages=true){if(!currentSefariaRef)return;let r=await fetch('/api/sefaria/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reference:currentSefariaRef,analysis:currentSefariaWordStudy||{},include_images:includeImages})});if(!r.ok){let j=await r.json();$('sefaria-status').textContent=j.error||'Export failed';return}let b=await r.blob(),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='quarries-sefaria-study.zip';a.click();URL.revokeObjectURL(a.href);$('sefaria-status').textContent='Downloaded study package.'}
+
+
+async function analyzeEntireSefaria(){
+    if(!currentSefariaPayload || !currentSefariaRef){
+        $('sefaria-status').textContent='Fetch a Sefaria text or sheet first.';
+        return;
+    }
+
+    let seg=currentSefariaPayload.segments||[];
+
+    if(!seg.length){
+        $('sefaria-status').textContent='The loaded study has no text segments to analyze.';
+        return;
+    }
+
+    $('sefaria-status').textContent=
+        'Analyzing unique Hebrew/Aramaic words across the entire study…';
+
+    $('sefaria-word-study').innerHTML=
+        '<p class="muted">Running every Gematria method and matching local reference entries across the complete study…</p>';
+
+    try{
+        let j=await post('/api/sefaria/analyze',{
+            reference:currentSefariaRef,
+            title:currentSefariaPayload.title||currentSefariaRef,
+            content_type:currentSefariaPayload.content_type||'text',
+            segments:seg,
+            limit:500
+        });
+
+        currentSefariaAnalysis=j;
+
+        try{
+            localStorage.setItem(
+                'quarries.sefaria.currentAnalysis',
+                JSON.stringify(j)
+            );
+
+            localStorage.setItem(
+                'quarries.sefaria.currentRef',
+                currentSefariaRef || ''
+            );
+        }catch(storageError){
+            console.warn('Could not persist Sefaria study in browser', storageError);
+        }
+
+        $('sefaria-status').textContent=
+            `Saved ${j.word_count} unique-word analyses in browser`;
+
+        inspectEntireSefaria();
+
+        // Match the Parashah workflow: saving the entire study
+        // immediately produces a browser download.
+        await downloadSefariaStudy(true);
+
+    }catch(e){
+        $('sefaria-status').textContent=e.message;
+        $('sefaria-word-study').innerHTML=
+            `<p class="error">${esc(e.message)}</p>`;
+    }
+}
+
+function inspectEntireSefaria(){
+    if(!currentSefariaAnalysis){
+        try{
+            const saved = localStorage.getItem(
+                'quarries.sefaria.currentAnalysis'
+            );
+
+            if(saved){
+                currentSefariaAnalysis = JSON.parse(saved);
+            }
+        }catch(storageError){
+            console.warn(
+                'Could not restore saved Sefaria study',
+                storageError
+            );
+        }
+    }
+
+    if(!currentSefariaAnalysis){
+        $('sefaria-word-study').innerHTML=
+            '<p class="muted">Analyze Entire Study + Save first.</p>';
+        return;
+    }
+
+    let rows=currentSefariaAnalysis.results||[];
+
+    if(!rows.length){
+        $('sefaria-word-study').innerHTML=
+            '<p class="muted">No Hebrew/Aramaic words were analyzed.</p>';
+        return;
+    }
+
+    let html=
+        `<div class="save-summary">
+            <h3>ENTIRE SEFARIA STUDY</h3>
+            <p><b>${rows.length}</b> unique Hebrew/Aramaic words analyzed.</p>
+            <p class="muted">${esc(currentSefariaAnalysis.path||'')}</p>
+        </div>`;
+
+    html += rows.map((item,idx)=>{
+        let methods=item.surface_methods||item.methods||[];
+        let strongs=item.strongs||{};
+        let best=strongs.best||{};
+        let candidates=strongs.candidates||[];
+
+        let lexical='';
+
+        if(best && Object.keys(best).length){
+            lexical=`
+                <div class="method-row">
+                    <div><b>Strong's / Lexicon</b></div>
+                    <div>
+                        Strong's:
+                        <b>${esc(best.strong_id||'—')}</b>
+                    </div>
+                    <div class="hebrew">
+                        ${esc(best.hebrew||best.lemma||'')}
+                    </div>
+                    <div>
+                        Lemma:
+                        ${esc(best.lemma||'—')}
+                    </div>
+                    <div>
+                        Pronunciation:
+                        ${esc(best.pronunciation||'—')}
+                    </div>
+                    <div>
+                        Transliteration:
+                        ${esc(best.transliteration||'—')}
+                    </div>
+                    <div>
+                        Morphology:
+                        ${esc(best.morphology||'—')}
+                    </div>
+                    <div>
+                        Gloss:
+                        <b>${esc(best.gloss||'—')}</b>
+                    </div>
+                    <div class="sub">
+                        ${esc(best.definitions||'')}
+                    </div>
+                    ${best.notes
+                        ? `<div class="sub">${esc(best.notes)}</div>`
+                        : ''
+                    }
+                    <div class="sub">
+                        Match confidence:
+                        ${esc(best.confidence??'—')}%
+                        ${best.matched_form
+                            ? ` · matched ${esc(best.matched_form)}`
+                            : ''
+                        }
+                    </div>
+                    ${candidates.length>1
+                        ? `<div class="sub">${candidates.length} Strong's candidates resolved</div>`
+                        : ''
+                    }
+                </div>`;
+        }else{
+            lexical=`
+                <div class="method-row">
+                    <div><b>Strong's / Lexicon</b></div>
+                    <div class="sub">
+                        No local Strong's candidate resolved for this surface form.
+                    </div>
+                </div>`;
+        }
+
+        let methodRows=methods.map(m=>{
+            let refs=m.reference_hits||[];
+
+            return `
+                <div class="method-row">
+                    <div>
+                        <b>${esc(m.method||'')}</b>
+                        ${m.hebrew_name?` · <span class="hebrew">${esc(m.hebrew_name)}</span>`:''}
+                    </div>
+                    <div>
+                        Value: <b>${esc(m.value)}</b>
+                        ${m.factorization?` · ${esc(m.factorization)}`:''}
+                    </div>
+                    ${m.reduction_chain?.length
+                        ? `<div class="sub">Reduction: ${esc(m.reduction_chain.join(' > '))}</div>`
+                        : ''
+                    }
+                    ${refs.length
+                        ? `<div class="sub">${refs.length} local reference match(es)</div>`
+                        : ''
+                    }
+                </div>`;
+        }).join('');
+
+        return `
+            <details class="study-section" ${idx===0?'open':''}>
+                <summary>
+                    <span class="hebrew">${esc(item.text||'')}</span>
+                    · ${methods.length} methods
+                </summary>
+                ${lexical}
+                ${methodRows}
+            </details>`;
+    }).join('');
+
+    $('sefaria-word-study').innerHTML=html;
+
+    let panel=$('sefaria-word-study');
+    if(panel)panel.scrollTop=0;
+}
+
+async function downloadSefariaStudy(includeImages=true){if(!currentSefariaRef)return;let r=await fetch('/api/sefaria/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reference:currentSefariaRef,analysis:currentSefariaAnalysis||currentSefariaWordStudy||{},include_images:includeImages})});if(!r.ok){let j=await r.json();$('sefaria-status').textContent=j.error||'Export failed';return}let b=await r.blob(),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='quarries-sefaria-study.zip';a.click();URL.revokeObjectURL(a.href);$('sefaria-status').textContent='Downloaded study package.'}
 function openCurrentInQuarries(){if(!currentSefariaRef)return;window.location.href='quarries://sefaria/'+encodeURIComponent(currentSefariaRef)}
 function handleDeepLink(){let q=new URLSearchParams(location.search),u=q.get('deeplink');if(!u)return;try{let decoded=decodeURIComponent(u);if(decoded.startsWith('quarries://sefaria/')){let ref=decodeURIComponent(decoded.slice('quarries://sefaria/'.length));document.querySelector('button[data-tab="hebrew"]').click();showHebrewMode('sefaria');$('sefaria-ref').value=ref;loadSefariaRef(ref)}}catch(e){console.warn(e)}}
 setTimeout(handleDeepLink,250);
 
 async function exportEntireParashah(){if(!currentParashahAnalysis)return;let r=await fetch('/api/parashah/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(currentParashahAnalysis)});if(!r.ok){let j=await r.json();throw new Error(j.error||'Export failed')}let b=await r.blob(),cd=r.headers.get('content-disposition')||'',m=cd.match(/filename=\"?([^\";]+)\"?/i),n=m?m[1]:'quarries-parashah.zip',a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);$('parashah-status').textContent='Browser export downloaded: '+n}
+
+
+function restoreSavedSefariaStudy(){
+    try{
+        const saved = localStorage.getItem(
+            'quarries.sefaria.currentAnalysis'
+        );
+
+        const savedRef = localStorage.getItem(
+            'quarries.sefaria.currentRef'
+        );
+
+        if(saved){
+            currentSefariaAnalysis = JSON.parse(saved);
+
+            if(savedRef){
+                currentSefariaRef = savedRef;
+            }
+        }
+    }catch(storageError){
+        console.warn(
+            'Could not restore browser-saved Sefaria study',
+            storageError
+        );
+    }
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+    restoreSavedSefariaStudy();
+});

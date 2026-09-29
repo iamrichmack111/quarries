@@ -13,11 +13,13 @@ from .torahcalc_reference import TorahCalcReference
 RESEARCH_DIR = DATA_DIR / "research"
 GEMATRIA_JSONL = RESEARCH_DIR / "gematria-entries.jsonl"
 PARASHAH_DIR = RESEARCH_DIR / "parashah"
+SEFARIA_DIR = RESEARCH_DIR / "sefaria"
 
 
 def _ensure_dirs() -> None:
     RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
     PARASHAH_DIR.mkdir(parents=True, exist_ok=True)
+    SEFARIA_DIR.mkdir(parents=True, exist_ok=True)
     try:
         os.chmod(RESEARCH_DIR, 0o700)
         os.chmod(PARASHAH_DIR, 0o700)
@@ -102,3 +104,30 @@ def save_word_study(payload: dict) -> Path:
     try: os.chmod(WORD_STUDY_JSONL, 0o600)
     except OSError: pass
     return WORD_STUDY_JSONL
+
+
+
+def save_sefaria_analysis(reference: str, payload: dict) -> Path:
+    _ensure_dirs()
+
+    safe = re.sub(
+        r"[^a-zA-Z0-9._-]+",
+        "-",
+        (reference or "sefaria-study").strip(),
+    ).strip("-").lower() or "sefaria-study"
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    path = SEFARIA_DIR / f"{stamp}-{safe[:100]}.json"
+
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+    return path

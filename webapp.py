@@ -25,8 +25,8 @@ from .ollama_client import CHAT_MODEL, EMBED_INDEX_VERSION, EMBED_MODEL, REFEREN
 from .storage import Store
 from .torahcalc_reference import TorahCalcReference
 from .parashah import weekly_parashah
-from .research import analysis_record, enriched_methods, save_analysis, save_parashah_analysis, save_word_study
-from .sefaria_online import SefariaClient, SefariaError, manuscript_image_urls, version_text
+from .research import analysis_record, enriched_methods, save_analysis, save_parashah_analysis, save_sefaria_analysis, save_word_study
+from .sefaria_online import SefariaClient, SefariaError, manuscript_image_urls, sheet_segments, version_text
 
 HOST = os.getenv("QUARRIES_HOST", "127.0.0.1")
 PORT = int(os.getenv("QUARRIES_PORT", "8787"))
@@ -527,11 +527,41 @@ def sefaria_text():
     tref=(request.args.get("ref") or "").strip()
     try:
         payload=SefariaClient().text(tref)
-        he=version_text(payload,"hebrew"); en=version_text(payload,"english")
+
+        if isinstance(payload,dict) and payload.get("_quarries_type")=="sheet":
+            segments=sheet_segments(payload)
+            return jsonify(
+                ok=True,
+                reference=payload.get("_quarries_ref",tref),
+                title=payload.get("title") or tref,
+                content_type="sheet",
+                segments=segments,
+                raw=payload,
+            )
+
+        he=version_text(payload,"hebrew")
+        en=version_text(payload,"english")
         n=max(len(he),len(en))
-        segments=[{"index":i+1,"hebrew":he[i] if i<len(he) else "","english":en[i] if i<len(en) else ""} for i in range(n)]
-        return jsonify(ok=True,reference=tref,segments=segments,raw=payload)
-    except SefariaError as exc:return _sefaria_error(exc)
+
+        segments=[
+            {
+                "index":i+1,
+                "hebrew":he[i] if i<len(he) else "",
+                "english":en[i] if i<len(en) else "",
+            }
+            for i in range(n)
+        ]
+
+        return jsonify(
+            ok=True,
+            reference=tref,
+            content_type="text",
+            segments=segments,
+            raw=payload,
+        )
+
+    except SefariaError as exc:
+        return _sefaria_error(exc)
 
 @app.get("/api/sefaria/calendars")
 def sefaria_calendars():
@@ -562,6 +592,172 @@ def sefaria_manuscripts():
         return jsonify(ok=True,manuscripts=data,image_urls=manuscript_image_urls(data))
     except SefariaError as exc:return _sefaria_error(exc)
 
+
+@app.post("/api/sefaria/analyze")
+def sefaria_analyze():
+    d = request.get_json(force=True) or {}
+
+    reference = (d.get("reference") or "").strip()
+    segments = d.get("segments") or []
+
+    if not reference:
+        return jsonify(
+            ok=False,
+            error="No Sefaria reference is loaded."
+        ), 400
+
+    hebrew_text = "\n".join(
+        str(x.get("hebrew") or "")
+        for x in segments
+        if isinstance(x, dict)
+    )
+
+    if not hebrew_text.strip():
+        return jsonify(
+            ok=False,
+            error="The loaded Sefaria study contains no Hebrew/Aramaic text."
+        ), 400
+
+    words = []
+    seen = set()
+
+    for word in hebrew_words(hebrew_text):
+        if word not in seen:
+            seen.add(word)
+            words.append(word)
+
+    limit = max(
+        1,
+        min(int(d.get("limit", 500)), 1000)
+    )
+
+    words = words[:limit]
+
+    results = []
+
+    lex = HebrewLexicon()
+
+    try:
+        for word in words:
+
+            # -----------------------------
+            # Strong's / lexical resolution
+            # -----------------------------
+
+            ranked = lex.resolve_surface(
+                word,
+                limit=5,
+            )
+
+            candidates = []
+
+            for score, row, matched_form in ranked:
+                item = hebrow(row, enrich=False)
+
+                item["confidence"] = round(
+                    max(0.0, min(100.0, score)),
+                    1,
+                )
+
+                item["matched_form"] = matched_form
+
+                candidates.append(item)
+
+            best = candidates[0] if candidates else None
+
+            lemma = ""
+
+            if ranked:
+                row = ranked[0][1]
+
+                lemma = (
+                    row["lemma"]
+                    or row["hebrew"]
+                    or ""
+                )
+
+            surface_unpointed = normalize_hebrew(word)
+            surface_calc = surface_unpointed.replace("/", "")
+
+            lemma_unpointed = (
+                normalize_hebrew(lemma)
+                if lemma
+                else ""
+            )
+
+            lemma_calc = lemma_unpointed.replace("/", "")
+
+            # -----------------------------
+            # Gematria
+            # -----------------------------
+
+            surface_methods = enriched_methods(
+                surface_calc,
+                include_reference=True,
+            )
+
+            lemma_methods = (
+                enriched_methods(
+                    lemma_calc,
+                    include_reference=True,
+                )
+                if lemma_calc
+                else []
+            )
+
+            results.append({
+                "text": word,
+
+                "surface_pointed": word,
+                "surface_unpointed": surface_unpointed,
+                "surface_normalized": surface_calc,
+
+                "lemma_pointed": lemma,
+                "lemma_unpointed": lemma_unpointed,
+                "lemma_normalized": lemma_calc,
+
+                "strongs": {
+                    "best": best,
+                    "candidates": candidates,
+                },
+
+                # Keep this name for compatibility with the
+                # existing whole-study inspector.
+                "methods": surface_methods,
+
+                "surface_methods": surface_methods,
+                "lemma_methods": lemma_methods,
+            })
+
+    finally:
+        lex.close()
+
+    payload = {
+        "saved_at": now_iso(),
+        "source": "Sefaria",
+        "reference": reference,
+        "title": d.get("title") or reference,
+        "content_type": d.get("content_type") or "text",
+        "word_count": len(results),
+        "results": results,
+    }
+
+    path = save_sefaria_analysis(
+        reference,
+        payload,
+    )
+
+    return jsonify(
+        ok=True,
+        path=str(path),
+        reference=reference,
+        title=payload["title"],
+        content_type=payload["content_type"],
+        word_count=len(results),
+        results=results,
+    )
+
+
 @app.post("/api/sefaria/export")
 def sefaria_export():
     d=request.get_json(force=True) or {}; tref=(d.get("reference") or "").strip()
@@ -570,12 +766,92 @@ def sefaria_export():
     try:
         client=SefariaClient(); text=client.text(tref); manuscripts=client.manuscripts(tref) if include_images else []
     except SefariaError as exc:return _sefaria_error(exc)
-    he=version_text(text,"hebrew"); en=version_text(text,"english")
-    report=[f"# Quarries Sefaria Study — {tref}","",f"Source: Sefaria · exported {now_iso()}",""]
+    if isinstance(text,dict) and text.get("_quarries_type")=="sheet":
+        segments=sheet_segments(text)
+        he=[x.get("hebrew","") for x in segments]
+        en=[x.get("english","") for x in segments]
+    else:
+        he=version_text(text,"hebrew")
+        en=version_text(text,"english")
+
+    report=[
+        f"# Quarries Sefaria Study — {tref}",
+        "",
+        f"Source: Sefaria · exported {now_iso()}",
+        "",
+    ]
     for i in range(max(len(he),len(en))):
         report += [f"## Segment {i+1}", he[i] if i<len(he) else "", "", en[i] if i<len(en) else "", ""]
     if analysis:
-        report += ["## Quarries Analysis","","```json",json.dumps(analysis,ensure_ascii=False,indent=2),"```",""]
+        report += ["## Quarries Analysis", ""]
+
+        whole_results = analysis.get("results") or []
+
+        if whole_results:
+            for item in whole_results:
+                word = item.get("text", "")
+                report += [
+                    f"### {word}",
+                    "",
+                ]
+
+                strongs = item.get("strongs") or {}
+                best = strongs.get("best") or {}
+
+                if best:
+                    report += [
+                        "**Strong's / Lexicon**",
+                        "",
+                        f"- Strong's: {best.get('strong_id') or '—'}",
+                        f"- Lemma: {best.get('lemma') or best.get('hebrew') or '—'}",
+                        f"- Hebrew: {best.get('hebrew') or '—'}",
+                        f"- Pronunciation: {best.get('pronunciation') or '—'}",
+                        f"- Transliteration: {best.get('transliteration') or '—'}",
+                        f"- Morphology: {best.get('morphology') or '—'}",
+                        f"- Language: {best.get('language') or '—'}",
+                        f"- Gloss: {best.get('gloss') or '—'}",
+                        "",
+                        "**Definitions**",
+                        "",
+                        str(best.get("definitions") or "—"),
+                        "",
+                        "**Lexicon / custom notes**",
+                        "",
+                        str(best.get("notes") or "—"),
+                        "",
+                    ]
+
+                report += [
+                    "**Gematria**",
+                    "",
+                ]
+
+                for method in item.get("surface_methods") or item.get("methods") or []:
+                    report.append(
+                        "- "
+                        + str(method.get("method") or "")
+                        + ": "
+                        + str(method.get("value") or "")
+                        + (
+                            " · " + str(method.get("factorization") or "")
+                            if method.get("factorization")
+                            else ""
+                        )
+                    )
+
+                report += [""]
+
+        else:
+            report += [
+                "```json",
+                json.dumps(
+                    analysis,
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                "```",
+                "",
+            ]
     manifest={"reference":tref,"exported_at":now_iso(),"source":"Sefaria","text":text,"analysis":analysis,"manuscripts":manuscripts}
     bio=io.BytesIO()
     with zipfile.ZipFile(bio,"w",zipfile.ZIP_DEFLATED) as z:

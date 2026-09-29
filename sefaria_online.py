@@ -42,7 +42,50 @@ class SefariaClient:
         except Exception as exc:
             raise SefariaError(f"Sefaria request failed: {exc}") from exc
 
+
+    @staticmethod
+    def _sheet_id(tref: str) -> int | None:
+        """Return the numeric ID for a reference such as 'Sheet 404263'."""
+        match = re.fullmatch(
+            r"\s*Sheet\s+(\d+)\s*",
+            tref or "",
+            re.I,
+        )
+        return int(match.group(1)) if match else None
+
+    def sheet(self, sheet_id: int) -> dict:
+        """Fetch a Sefaria source sheet and reject unavailable/private sheets."""
+        payload = self._get(f"/api/sheets/{sheet_id}")
+
+        if not isinstance(payload, dict):
+            raise SefariaError(
+                f"Sefaria returned an invalid response for Sheet {sheet_id}."
+            )
+
+        if payload.get("error"):
+            raise SefariaError(
+                f"Sheet {sheet_id}: {payload['error']}"
+            )
+
+        if not payload.get("sources"):
+            raise SefariaError(
+                f"Sheet {sheet_id} exists but contains no accessible sources."
+            )
+
+        payload["_quarries_type"] = "sheet"
+        payload["_quarries_ref"] = f"Sheet {sheet_id}"
+
+        return payload
+
     def text(self, tref: str) -> dict:
+        tref = (tref or "").strip()
+        if not tref:
+            raise SefariaError("Sefaria reference is empty.")
+
+        sheet_id = self._sheet_id(tref)
+        if sheet_id is not None:
+            return self.sheet(sheet_id)
+
         tref = (tref or "").strip()
         if not tref:
             raise SefariaError("A Sefaria reference is required.")
@@ -139,3 +182,118 @@ def manuscript_image_urls(payload) -> list[str]:
         if u not in seen:
             seen.add(u); out.append(u)
     return out
+
+
+
+def _sheet_plain_text(value) -> str:
+    """Normalize text and simple HTML from a Sefaria Sheet."""
+    if value is None:
+        return ""
+
+    if isinstance(value, list):
+        return " ".join(
+            part
+            for part in (_sheet_plain_text(item) for item in value)
+            if part
+        )
+
+    text = str(value)
+
+    text = re.sub(
+        r"<br\s*/?>",
+        "\n",
+        text,
+        flags=re.I,
+    )
+
+    text = re.sub(r"<[^>]+>", "", text)
+
+    replacements = {
+        "&nbsp;": " ",
+        "&amp;": "&",
+        "&quot;": '"',
+        "&#39;": "'",
+        "&lt;": "<",
+        "&gt;": ">",
+    }
+
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+
+    text = re.sub(r"[ \t]+", " ", text)
+
+    return text.strip()
+
+
+def sheet_segments(payload: dict) -> list[dict]:
+    """
+    Flatten a Sefaria Sheet into the Hebrew/English segment structure
+    expected by the Quarries reader.
+    """
+    segments = []
+
+    def walk(sources):
+        for source in sources or []:
+
+            if not isinstance(source, dict):
+                continue
+
+            hebrew = ""
+            english = ""
+
+            value = source.get("text")
+
+            if isinstance(value, dict):
+                hebrew = _sheet_plain_text(
+                    value.get("he")
+                )
+                english = _sheet_plain_text(
+                    value.get("en")
+                )
+
+            elif value:
+                english = _sheet_plain_text(value)
+
+            outside_bi = source.get("outsideBiText")
+
+            if isinstance(outside_bi, dict):
+                hebrew = (
+                    hebrew
+                    or _sheet_plain_text(
+                        outside_bi.get("he")
+                    )
+                )
+
+                english = (
+                    english
+                    or _sheet_plain_text(
+                        outside_bi.get("en")
+                    )
+                )
+
+            outside = source.get("outsideText")
+
+            if outside:
+                english = (
+                    english
+                    or _sheet_plain_text(outside)
+                )
+
+            reference = _sheet_plain_text(
+                source.get("ref")
+            )
+
+            if hebrew or english or reference:
+
+                segments.append({
+                    "index": len(segments) + 1,
+                    "reference": reference,
+                    "hebrew": hebrew,
+                    "english": english,
+                })
+
+            walk(source.get("subsources"))
+
+    walk(payload.get("sources"))
+
+    return segments
