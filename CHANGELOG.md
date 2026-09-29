@@ -1,3 +1,18 @@
+## v0.10.10 - 2026-09-29
+
+- Added an in-app Sefaria manuscript gallery.
+- Added manuscript image thumbnails with full-size in-app viewer.
+- Added previous/next manuscript page navigation.
+- Added manuscript metadata including title, Hebrew title, anchor ref, page ID, description, source, and discovery ref.
+- Added manuscript discovery for Sefaria Sheets by expanding sheet source refs instead of querying the sheet ID directly.
+- Added progressive manuscript discovery with `Scan More` across broader Tanakh reference batches.
+- Added browser-side manuscript gallery caching and cache reset controls.
+- Added direct manuscript API search by Sefaria textual reference.
+- Added separate gallery modes for individual Pages and grouped Collections.
+- Changed manuscript gallery cards to a horizontal layout for better use of the Sefaria center pane.
+- Added gallery filtering for discovered manuscripts and pages.
+- Improved deduplication of discovered manuscript pages by manuscript slug, page ID, and image URL.
+
 ## v0.10.9 - 2026-09-29
 
 - Fixed Sefaria Sheet handling so `Sheet ####` references use the Sheets API instead of the Texts v3 endpoint.

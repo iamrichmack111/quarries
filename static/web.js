@@ -1,3 +1,6 @@
+let currentManuscriptGallery=[];
+let manuscriptGalleryViewMode='pages';
+let currentGalleryManuscriptIndex=0;
 let STATUS={}, currentLeaf=null, currentChat=null, currentHebrew=null, currentDict=null, currentParashahAnalysis=null, currentSefariaAnalysis=null, passwordModalResolver=null;
 const $=id=>document.getElementById(id); const esc=s=>(s??'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(url,opt={}){document.body.classList.add('busy');try{let r=await fetch(url,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});let ct=r.headers.get('content-type')||'';if(!ct.includes('json'))return r;let j=await r.json();if(!r.ok)throw new Error(j.error||'Request failed');return j}finally{document.body.classList.remove('busy')}}
@@ -94,8 +97,1143 @@ function collectRefs(x,out=[]){if(Array.isArray(x)){x.forEach(y=>collectRefs(y,o
 async function openSefariaTopic(slug){$('sefaria-status').textContent='Loading topic '+slug+'…';try{let j=await api('/api/sefaria/topic/'+encodeURIComponent(slug));let refs=collectRefs(j.topic).slice(0,100);$('sefaria-discovery').innerHTML=`<div class="list-item"><b>${esc(slug)}</b><div class="sub">${refs.length} source references found</div></div>`+refs.map(r=>`<div class="list-item" onclick='loadSefariaRef(${JSON.stringify(r)})'>${esc(r)}</div>`).join('');$('sefaria-status').textContent='Topic loaded. Choose a source to analyze.'}catch(e){$('sefaria-status').textContent=e.message}}
 async function loadSefariaDaily(){ $('sefaria-discovery').innerHTML='<p class="muted">Loading today’s Sefaria learning schedules…</p>';try{let j=await api('/api/sefaria/calendars');let items=j.calendar?.calendar_items||j.calendar?.calendarItems||[];if(!Array.isArray(items))items=[];$('sefaria-discovery').innerHTML=items.map(x=>{let ref=x.ref||x.displayValue?.en||x.title?.en||'';let title=x.title?.en||x.title||x.displayValue?.en||ref||'Daily Study';return `<div class="list-item" ${ref?`onclick='loadSefariaRef(${JSON.stringify(ref)})'`:''}><b>${esc(title)}</b><div class="sub">${esc(ref)}</div></div>`}).join('')||`<pre>${esc(JSON.stringify(j.calendar,null,2))}</pre>`;$('sefaria-status').textContent='Daily/weekly learning schedule loaded.'}catch(e){$('sefaria-status').textContent=e.message}}
 async function loadSefariaRelated(){if(!currentSefariaRef)return;$('sefaria-discovery').innerHTML='<p class="muted">Loading related texts, topics, media, and links…</p>';try{let j=await api('/api/sefaria/related?ref='+encodeURIComponent(currentSefariaRef));let refs=collectRefs(j.related).slice(0,120);$('sefaria-discovery').innerHTML=`<div class="list-item"><b>Related to ${esc(currentSefariaRef)}</b><div class="sub">${refs.length} linked refs</div></div>`+refs.map(r=>`<div class="list-item" onclick='loadSefariaRef(${JSON.stringify(r)})'>${esc(r)}</div>`).join('')}catch(e){$('sefaria-discovery').textContent=e.message}}
-async function loadSefariaManuscripts(){if(!currentSefariaRef)return;$('sefaria-status').textContent='Loading manuscript witnesses…';try{let j=await api('/api/sefaria/manuscripts?ref='+encodeURIComponent(currentSefariaRef));let urls=j.image_urls||[];$('sefaria-manuscripts').innerHTML=urls.length?urls.map((u,i)=>`<div class="manuscript-card"><div class="online-badge">MANUSCRIPT ${i+1}</div><a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Manuscript witness ${i+1}" loading="lazy"></a><div class="button-row"><a class="button" href="${esc(u)}" target="_blank" rel="noopener">Open Image</a></div></div>`).join(''):'<p class="muted">No manuscript image URLs were returned for this reference.</p>';$('sefaria-status').textContent=urls.length?`${urls.length} manuscript image(s) found. Export Study + Images will package them.`:'No manuscript images found for this reference.'}catch(e){$('sefaria-status').textContent=e.message}}
 
+let manuscriptGalleryBatch=0;
+let manuscriptGalleryHasMore=true;
+
+function manuscriptGalleryKey(item){
+    const m=item.manuscript||{};
+    return [
+        item.manuscript_slug||m.slug||'',
+        item.page_id||'',
+        item.image_url||''
+    ].join('|');
+}
+
+function saveManuscriptGalleryCache(){
+    try{
+        localStorage.setItem(
+            'quarries.manuscriptGallery.items',
+            JSON.stringify(currentManuscriptGallery)
+        );
+        localStorage.setItem(
+            'quarries.manuscriptGallery.batch',
+            String(manuscriptGalleryBatch)
+        );
+        localStorage.setItem(
+            'quarries.manuscriptGallery.hasMore',
+            manuscriptGalleryHasMore?'1':'0'
+        );
+    }catch(e){
+        console.warn('Could not save manuscript gallery cache',e);
+    }
+}
+
+function restoreManuscriptGalleryCache(){
+    try{
+        const raw=localStorage.getItem(
+            'quarries.manuscriptGallery.items'
+        );
+        if(raw){
+            currentManuscriptGallery=JSON.parse(raw)||[];
+        }
+
+        manuscriptGalleryBatch=parseInt(
+            localStorage.getItem(
+                'quarries.manuscriptGallery.batch'
+            )||'0',
+            10
+        );
+
+        manuscriptGalleryHasMore=
+            localStorage.getItem(
+                'quarries.manuscriptGallery.hasMore'
+            )!=='0';
+    }catch(e){
+        console.warn('Could not restore manuscript gallery cache',e);
+    }
+}
+
+async function loadManuscriptGallery(){
+    restoreManuscriptGalleryCache();
+
+    if(currentManuscriptGallery.length){
+        renderManuscriptGallery(currentManuscriptGallery);
+        $('sefaria-status').textContent=
+            `${currentManuscriptGallery.length} cached manuscript pages available.`;
+        return;
+    }
+
+    manuscriptGalleryBatch=0;
+    await scanMoreManuscripts();
+}
+
+async function scanMoreManuscripts(){
+    const box=$('sefaria-manuscripts');
+
+    $('sefaria-status').textContent=
+        `Scanning manuscript batch ${manuscriptGalleryBatch+1}…`;
+
+    try{
+        const j=await api(
+            '/api/sefaria/manuscript-gallery?batch='
+            +encodeURIComponent(manuscriptGalleryBatch)
+        );
+
+        const byKey=new Map();
+
+        currentManuscriptGallery.forEach(item=>{
+            byKey.set(manuscriptGalleryKey(item),item);
+        });
+
+        (j.manuscripts||[]).forEach(item=>{
+            byKey.set(manuscriptGalleryKey(item),item);
+        });
+
+        currentManuscriptGallery=[...byKey.values()];
+
+        manuscriptGalleryHasMore=!!j.has_more;
+
+        if(j.has_more){
+            manuscriptGalleryBatch=j.batch+1;
+        }
+
+        saveManuscriptGalleryCache();
+        renderManuscriptGallery(currentManuscriptGallery);
+
+        $('sefaria-status').textContent=
+            `${currentManuscriptGallery.length} manuscript pages discovered.`;
+
+    }catch(e){
+        $('sefaria-status').textContent=e.message;
+        if(!currentManuscriptGallery.length){
+            box.innerHTML=`<p class="error">${esc(e.message)}</p>`;
+        }
+    }
+}
+
+function clearManuscriptGalleryCache(){
+    currentManuscriptGallery=[];
+    manuscriptGalleryBatch=0;
+    manuscriptGalleryHasMore=true;
+
+    try{
+        localStorage.removeItem(
+            'quarries.manuscriptGallery.items'
+        );
+        localStorage.removeItem(
+            'quarries.manuscriptGallery.batch'
+        );
+        localStorage.removeItem(
+            'quarries.manuscriptGallery.hasMore'
+        );
+    }catch(e){}
+
+    renderManuscriptGallery([]);
+    $('sefaria-status').textContent='Manuscript gallery cache cleared.';
+}
+
+
+function galleryMeta(item){
+    const m=item.manuscript||{};
+
+    return {
+        title:
+            m.title
+            ||item.manuscript_slug
+            ||'Manuscript',
+
+        heTitle:
+            m.he_title
+            ||m.heTitle
+            ||'',
+
+        description:
+            m.description
+            ||'',
+
+        source:
+            m.source
+            ||'',
+
+        anchor:
+            item.anchorRef
+            ||'',
+
+        seedRef:
+            item._quarries_seed_ref
+            ||'',
+
+        page:
+            item.page_id
+            ||'',
+
+        slug:
+            item.manuscript_slug
+            ||'',
+
+        image:
+            item.image_url
+            ||'',
+
+        thumb:
+            item.thumbnail_url
+            ||item.image_url
+            ||''
+    };
+}
+
+function setManuscriptGalleryMode(mode){
+    manuscriptGalleryViewMode=mode==='collections'
+        ?'collections'
+        :'pages';
+
+    renderManuscriptGallery(currentManuscriptGallery);
+}
+
+function renderManuscriptGallery(items){
+    const box=$('sefaria-manuscripts');
+
+    if(!items.length){
+        box.innerHTML=`
+            <h3>MANUSCRIPT GALLERY</h3>
+            <p class="muted">
+                No manuscript pages have been discovered yet.
+            </p>
+        `;
+        return;
+    }
+
+    const groups=new Map();
+
+    items.forEach((item,index)=>{
+        const m=galleryMeta(item);
+        const key=m.slug||m.title;
+
+        if(!groups.has(key)){
+            groups.set(key,{
+                key,
+                title:m.title,
+                heTitle:m.heTitle,
+                description:m.description,
+                source:m.source,
+                pages:[]
+            });
+        }
+
+        groups.get(key).pages.push({
+            item,
+            index,
+            meta:m
+        });
+    });
+
+    const manuscriptGroups=[...groups.values()];
+
+    let html=`
+        <div class="manuscript-gallery-head">
+            <div>
+                <h3>MANUSCRIPT GALLERY</h3>
+
+                <p class="muted">
+                    ${manuscriptGroups.length}
+                    manuscript collection${manuscriptGroups.length===1?'':'s'}
+                    ·
+                    ${items.length}
+                    discovered page${items.length===1?'':'s'}
+                </p>
+            </div>
+
+            <div class="button-row">
+                <button
+                    class="${manuscriptGalleryViewMode==='pages'?'primary':''}"
+                    onclick="setManuscriptGalleryMode('pages')"
+                >
+                    Pages (${items.length})
+                </button>
+
+                <button
+                    class="${manuscriptGalleryViewMode==='collections'?'primary':''}"
+                    onclick="setManuscriptGalleryMode('collections')"
+                >
+                    Collections (${manuscriptGroups.length})
+                </button>
+            </div>
+
+            <div class="manuscript-api-search">
+                <input
+                    id="manuscript-api-ref"
+                    placeholder="Find by Sefaria ref, e.g. Esther 5:14"
+                    onkeydown="if(event.key==='Enter')searchManuscriptApi()"
+                >
+
+                <button onclick="searchManuscriptApi()">
+                    Search API
+                </button>
+            </div>
+
+            <div class="button-row">
+                <button
+                    onclick="scanMoreManuscripts()"
+                    ${manuscriptGalleryHasMore?'':'disabled'}
+                >
+                    ${manuscriptGalleryHasMore
+                        ?'Scan More'
+                        :'All Batches Scanned'}
+                </button>
+
+                <button onclick="clearManuscriptGalleryCache()">
+                    Clear Cache
+                </button>
+            </div>
+
+            <input
+                id="manuscript-gallery-filter"
+                placeholder="Filter discovered pages or manuscripts…"
+                oninput="filterManuscriptGallery()"
+            >
+        </div>
+    `;
+
+    // ========================================================
+    // PAGE VIEW
+    // ========================================================
+
+    if(manuscriptGalleryViewMode==='pages'){
+        html+='<div class="manuscript-gallery-grid">';
+
+        items.forEach((item,index)=>{
+            const m=galleryMeta(item);
+
+            const searchable=[
+                m.title,
+                m.heTitle,
+                m.description,
+                m.anchor,
+                m.seedRef,
+                m.page,
+                m.slug
+            ].join(' ').toLowerCase();
+
+            html+=`
+                <article
+                    class="manuscript-gallery-card"
+                    data-gallery-search="${esc(searchable)}"
+                >
+                    <button
+                        class="manuscript-gallery-thumb"
+                        onclick="openGalleryManuscript(${index})"
+                    >
+                        <img
+                            src="${esc(m.thumb)}"
+                            alt="${esc(m.title)}"
+                            loading="lazy"
+                        >
+                    </button>
+
+                    <div class="manuscript-gallery-body">
+
+                        <div class="online-badge">
+                            ${esc(m.title)}
+                        </div>
+
+                        ${m.heTitle
+                            ? `<div class="hebrew">${esc(m.heTitle)}</div>`
+                            : ''
+                        }
+
+                        ${m.anchor
+                            ? `<div>
+                                <b>Anchor:</b>
+                                ${esc(m.anchor)}
+                               </div>`
+                            : ''
+                        }
+
+                        ${m.page
+                            ? `<div>
+                                <b>Page:</b>
+                                ${esc(m.page)}
+                               </div>`
+                            : ''
+                        }
+
+                        ${m.seedRef
+                            ? `<div class="sub">
+                                Discovered via:
+                                ${esc(m.seedRef)}
+                               </div>`
+                            : ''
+                        }
+
+                        ${m.description
+                            ? `<p class="muted">
+                                ${esc(m.description)}
+                               </p>`
+                            : ''
+                        }
+
+                        <div class="button-row">
+                            <button
+                                onclick="openGalleryManuscript(${index})"
+                            >
+                                View Page
+                            </button>
+
+                            ${m.source
+                                ? `<a
+                                    class="button"
+                                    href="${esc(m.source)}"
+                                    target="_blank"
+                                    rel="noopener"
+                                   >Source</a>`
+                                : ''
+                            }
+                        </div>
+                    </div>
+                </article>
+            `;
+        });
+
+        html+='</div>';
+        box.innerHTML=html;
+        return;
+    }
+
+
+    // ========================================================
+    // COLLECTION VIEW
+    // ========================================================
+
+    html+='<div class="manuscript-gallery-grid">';
+
+    manuscriptGroups.forEach(group=>{
+        const first=group.pages[0];
+        const m=first.meta;
+
+        const refs=[
+            ...new Set(
+                group.pages
+                    .map(x=>x.meta.anchor||x.meta.seedRef)
+                    .filter(Boolean)
+            )
+        ];
+
+        const searchable=[
+            group.title,
+            group.heTitle,
+            group.description,
+            refs.join(' '),
+            group.pages.map(x=>x.meta.page).join(' ')
+        ].join(' ').toLowerCase();
+
+        html+=`
+            <article
+                class="manuscript-gallery-card"
+                data-gallery-search="${esc(searchable)}"
+            >
+                <button
+                    class="manuscript-gallery-thumb"
+                    onclick="openGalleryManuscript(${first.index})"
+                >
+                    <img
+                        src="${esc(m.thumb)}"
+                        alt="${esc(group.title)}"
+                        loading="lazy"
+                    >
+                </button>
+
+                <div class="manuscript-gallery-body">
+
+                    <div class="online-badge">
+                        ${esc(group.title)}
+                    </div>
+
+                    ${group.heTitle
+                        ? `<div class="hebrew">
+                            ${esc(group.heTitle)}
+                           </div>`
+                        : ''
+                    }
+
+                    <div>
+                        <b>${group.pages.length}</b>
+                        page${group.pages.length===1?'':'s'} discovered
+                    </div>
+
+                    ${refs.length
+                        ? `<div class="sub">
+                            Refs:
+                            ${esc(refs.slice(0,8).join(' · '))}
+                            ${refs.length>8?' …':''}
+                           </div>`
+                        : ''
+                    }
+
+                    ${group.description
+                        ? `<p class="muted">
+                            ${esc(group.description)}
+                           </p>`
+                        : ''
+                    }
+
+                    <div class="button-row">
+                        <button
+                            onclick="openGalleryManuscript(${first.index})"
+                        >
+                            Browse Pages
+                        </button>
+
+                        ${group.source
+                            ? `<a
+                                class="button"
+                                href="${esc(group.source)}"
+                                target="_blank"
+                                rel="noopener"
+                               >Source</a>`
+                            : ''
+                        }
+                    </div>
+                </div>
+            </article>
+        `;
+    });
+
+    html+='</div>';
+
+    box.innerHTML=html;
+}
+
+function filterManuscriptGallery(){
+    const input=$('manuscript-gallery-filter');
+
+    if(!input)return;
+
+    const q=(input.value||'')
+        .trim()
+        .toLowerCase();
+
+    document.querySelectorAll(
+        '#sefaria-manuscripts [data-gallery-search]'
+    ).forEach(card=>{
+        const hay=card.dataset.gallerySearch||'';
+
+        card.style.display=
+            !q||hay.includes(q)
+                ?''
+                :'none';
+    });
+}
+
+function openGalleryManuscript(index){
+    if(
+        !currentManuscriptGallery.length
+        ||index<0
+        ||index>=currentManuscriptGallery.length
+    ){
+        return;
+    }
+
+    currentGalleryManuscriptIndex=index;
+
+    const item=currentManuscriptGallery[index];
+    const m=galleryMeta(item);
+
+    let modal=$('manuscript-gallery-viewer');
+
+    if(!modal){
+        modal=document.createElement('div');
+        modal.id='manuscript-gallery-viewer';
+        modal.className='manuscript-viewer hidden';
+
+        modal.innerHTML=`
+            <div
+                class="manuscript-viewer-backdrop"
+                onclick="closeGalleryManuscript()"
+            ></div>
+
+            <div class="manuscript-viewer-dialog">
+                <div class="manuscript-viewer-head">
+                    <div>
+                        <h3 id="gallery-viewer-title"></h3>
+                        <div
+                            id="gallery-viewer-ref"
+                            class="muted"
+                        ></div>
+                    </div>
+
+                    <button
+                        onclick="closeGalleryManuscript()"
+                        aria-label="Close"
+                    >×</button>
+                </div>
+
+                <div class="manuscript-viewer-stage">
+                    <button
+                        class="manuscript-nav manuscript-prev"
+                        onclick="stepGalleryManuscript(-1)"
+                    >‹</button>
+
+                    <img
+                        id="gallery-viewer-image"
+                        alt="Manuscript"
+                    >
+
+                    <button
+                        class="manuscript-nav manuscript-next"
+                        onclick="stepGalleryManuscript(1)"
+                    >›</button>
+                </div>
+
+                <div
+                    id="gallery-viewer-meta"
+                    class="manuscript-viewer-meta"
+                ></div>
+
+                <div class="button-row">
+                    <a
+                        id="gallery-viewer-original"
+                        class="button"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        Open Original
+                    </a>
+
+                    <a
+                        id="gallery-viewer-source"
+                        class="button"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        Source
+                    </a>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        document.addEventListener('keydown',e=>{
+            if(modal.classList.contains('hidden')){
+                return;
+            }
+
+            if(e.key==='Escape'){
+                closeGalleryManuscript();
+            }
+
+            if(e.key==='ArrowLeft'){
+                stepGalleryManuscript(-1);
+            }
+
+            if(e.key==='ArrowRight'){
+                stepGalleryManuscript(1);
+            }
+        });
+    }
+
+    $('gallery-viewer-title').textContent=
+        m.title;
+
+    $('gallery-viewer-ref').textContent=
+        [
+            m.anchor,
+            m.page
+                ?`Page ${m.page}`
+                :''
+        ].filter(Boolean).join(' · ');
+
+    const img=$('gallery-viewer-image');
+    img.src=m.image||m.thumb;
+    img.alt=m.title;
+
+    $('gallery-viewer-meta').innerHTML=`
+        ${m.heTitle
+            ? `<div class="hebrew">${esc(m.heTitle)}</div>`
+            : ''
+        }
+
+        ${m.anchor
+            ? `<div><b>Anchor:</b> ${esc(m.anchor)}</div>`
+            : ''
+        }
+
+        ${m.seedRef
+            ? `<div><b>Discovered via:</b> ${esc(m.seedRef)}</div>`
+            : ''
+        }
+
+        ${m.page
+            ? `<div><b>Page:</b> ${esc(m.page)}</div>`
+            : ''
+        }
+
+        ${m.description
+            ? `<p>${esc(m.description)}</p>`
+            : ''
+        }
+
+        <div class="muted">
+            ${index+1} of ${currentManuscriptGallery.length}
+            discovered pages
+        </div>
+    `;
+
+    const original=$('gallery-viewer-original');
+
+    if(m.image){
+        original.href=m.image;
+        original.style.display='';
+    }else{
+        original.style.display='none';
+    }
+
+    const source=$('gallery-viewer-source');
+
+    if(m.source){
+        source.href=m.source;
+        source.style.display='';
+    }else{
+        source.style.display='none';
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function stepGalleryManuscript(delta){
+    if(!currentManuscriptGallery.length){
+        return;
+    }
+
+    const current=
+        currentManuscriptGallery[
+            currentGalleryManuscriptIndex
+        ];
+
+    const currentMeta=
+        galleryMeta(current);
+
+    const sameManuscript=
+        currentManuscriptGallery
+            .map((item,index)=>({
+                item,
+                index,
+                meta:galleryMeta(item),
+            }))
+            .filter(x=>
+                (
+                    x.meta.slug
+                    ||x.meta.title
+                )===(
+                    currentMeta.slug
+                    ||currentMeta.title
+                )
+            );
+
+    if(!sameManuscript.length){
+        return;
+    }
+
+    let localIndex=
+        sameManuscript.findIndex(
+            x=>x.index===currentGalleryManuscriptIndex
+        );
+
+    localIndex+=delta;
+
+    if(localIndex<0){
+        localIndex=sameManuscript.length-1;
+    }
+
+    if(localIndex>=sameManuscript.length){
+        localIndex=0;
+    }
+
+    openGalleryManuscript(
+        sameManuscript[localIndex].index
+    );
+}
+
+function closeGalleryManuscript(){
+    const modal=$('manuscript-gallery-viewer');
+
+    if(modal){
+        modal.classList.add('hidden');
+    }
+}
+
+async function loadSefariaManuscripts(){
+    if(!currentSefariaRef)return;
+
+    const box=$('sefaria-manuscripts');
+
+    $('sefaria-status').textContent='Loading manuscript witnesses…';
+
+    box.innerHTML=`
+        <div class="manuscript-browser-tools">
+            <input
+                id="manuscript-filter"
+                placeholder="Filter manuscripts by title, ref, page, description…"
+                oninput="filterManuscripts()"
+            >
+        </div>
+        <p class="muted">Searching manuscript witnesses…</p>
+    `;
+
+    try{
+        const j=await api(
+            '/api/sefaria/manuscripts?ref='
+            +encodeURIComponent(currentSefariaRef)
+        );
+
+        currentSefariaManuscripts=j.manuscripts||[];
+
+        renderManuscriptBrowser(currentSefariaManuscripts);
+
+        const n=currentSefariaManuscripts.length;
+
+        $('sefaria-status').textContent=n
+            ? `${n} manuscript witness${n===1?'':'es'} found. Click an image to inspect it in Quarries.`
+            : 'No manuscript images found for this reference.';
+
+    }catch(e){
+        $('sefaria-status').textContent=e.message;
+        box.innerHTML=`<p class="error">${esc(e.message)}</p>`;
+    }
+}
+
+let currentSefariaManuscripts=[];
+let currentManuscriptIndex=0;
+
+function manuscriptMeta(item){
+    const m=item.manuscript||{};
+
+    return {
+        title:m.title||item.manuscript_slug||'Manuscript',
+        heTitle:m.he_title||'',
+        description:m.description||'',
+        source:m.source||'',
+        anchor:item.anchorRef||item._quarries_source_ref||'',
+        queriedRef:item._quarries_source_ref||'',
+        page:item.page_id||'',
+        image:item.image_url||'',
+        thumb:item.thumbnail_url||item.image_url||''
+    };
+}
+
+function renderManuscriptBrowser(items){
+    const box=$('sefaria-manuscripts');
+
+    if(!items.length){
+        box.innerHTML=`
+            <p class="muted">
+                No manuscript image URLs were returned for this reference.
+            </p>
+        `;
+        return;
+    }
+
+    const filter=`
+        <div class="manuscript-browser-tools">
+            <input
+                id="manuscript-filter"
+                placeholder="Filter manuscripts by title, ref, page, description…"
+                oninput="filterManuscripts()"
+            >
+            <span class="status">${items.length} result${items.length===1?'':'s'}</span>
+        </div>
+    `;
+
+    const cards=items.map((item,i)=>{
+        const m=manuscriptMeta(item);
+
+        const searchable=[
+            m.title,
+            m.heTitle,
+            m.description,
+            m.anchor,
+            m.queriedRef,
+            m.page
+        ].join(' ').toLowerCase();
+
+        return `
+            <div
+                class="manuscript-card"
+                data-manuscript-search="${esc(searchable)}"
+            >
+                <button
+                    class="manuscript-image-button"
+                    onclick="openManuscriptViewer(${i})"
+                    title="Open manuscript image"
+                >
+                    <img
+                        src="${esc(m.thumb)}"
+                        alt="${esc(m.title)}"
+                        loading="lazy"
+                    >
+                </button>
+
+                <div class="online-badge">${esc(m.title)}</div>
+
+                ${m.heTitle
+                    ? `<div class="hebrew">${esc(m.heTitle)}</div>`
+                    : ''
+                }
+
+                <div class="manuscript-meta">
+                    ${m.anchor
+                        ? `<div><b>Ref:</b> ${esc(m.anchor)}</div>`
+                        : ''
+                    }
+
+                    ${m.queriedRef && m.queriedRef!==m.anchor
+                        ? `<div><b>Sheet source:</b> ${esc(m.queriedRef)}</div>`
+                        : ''
+                    }
+
+                    ${m.page
+                        ? `<div><b>Page:</b> ${esc(m.page)}</div>`
+                        : ''
+                    }
+
+                    ${m.description
+                        ? `<div class="muted">${esc(m.description)}</div>`
+                        : ''
+                    }
+                </div>
+
+                <div class="button-row">
+                    <button onclick="openManuscriptViewer(${i})">
+                        View in App
+                    </button>
+
+                    ${m.image
+                        ? `<a
+                            class="button"
+                            href="${esc(m.image)}"
+                            target="_blank"
+                            rel="noopener"
+                        >Open Original</a>`
+                        : ''
+                    }
+
+                    ${m.source
+                        ? `<a
+                            class="button"
+                            href="${esc(m.source)}"
+                            target="_blank"
+                            rel="noopener"
+                        >Source</a>`
+                        : ''
+                    }
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    box.innerHTML=filter+`<div class="manuscript-results-grid">${cards}</div>`;
+}
+
+function filterManuscripts(){
+    const input=$('manuscript-filter');
+
+    if(!input)return;
+
+    const q=(input.value||'').trim().toLowerCase();
+
+    document.querySelectorAll(
+        '#sefaria-manuscripts [data-manuscript-search]'
+    ).forEach(card=>{
+        const hay=card.dataset.manuscriptSearch||'';
+        card.style.display=!q||hay.includes(q)?'':'none';
+    });
+}
+
+function openManuscriptViewer(index){
+    if(
+        !currentSefariaManuscripts.length
+        || index<0
+        || index>=currentSefariaManuscripts.length
+    )return;
+
+    currentManuscriptIndex=index;
+
+    const item=currentSefariaManuscripts[index];
+    const m=manuscriptMeta(item);
+
+    let modal=$('manuscript-viewer');
+
+    if(!modal){
+        modal=document.createElement('div');
+        modal.id='manuscript-viewer';
+        modal.className='manuscript-viewer hidden';
+
+        modal.innerHTML=`
+            <div
+                class="manuscript-viewer-backdrop"
+                onclick="closeManuscriptViewer()"
+            ></div>
+
+            <div class="manuscript-viewer-dialog">
+                <div class="manuscript-viewer-head">
+                    <div>
+                        <h3 id="manuscript-viewer-title"></h3>
+                        <div
+                            id="manuscript-viewer-ref"
+                            class="muted"
+                        ></div>
+                    </div>
+
+                    <button
+                        onclick="closeManuscriptViewer()"
+                        aria-label="Close manuscript viewer"
+                    >×</button>
+                </div>
+
+                <div class="manuscript-viewer-stage">
+                    <button
+                        class="manuscript-nav manuscript-prev"
+                        onclick="stepManuscript(-1)"
+                        title="Previous manuscript"
+                    >‹</button>
+
+                    <img
+                        id="manuscript-viewer-image"
+                        alt="Manuscript image"
+                    >
+
+                    <button
+                        class="manuscript-nav manuscript-next"
+                        onclick="stepManuscript(1)"
+                        title="Next manuscript"
+                    >›</button>
+                </div>
+
+                <div
+                    id="manuscript-viewer-meta"
+                    class="manuscript-viewer-meta"
+                ></div>
+
+                <div class="button-row">
+                    <a
+                        id="manuscript-viewer-original"
+                        class="button"
+                        target="_blank"
+                        rel="noopener"
+                    >Open Original</a>
+
+                    <a
+                        id="manuscript-viewer-source"
+                        class="button"
+                        target="_blank"
+                        rel="noopener"
+                    >Source</a>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        document.addEventListener('keydown',e=>{
+            if(modal.classList.contains('hidden'))return;
+
+            if(e.key==='Escape')closeManuscriptViewer();
+            if(e.key==='ArrowLeft')stepManuscript(-1);
+            if(e.key==='ArrowRight')stepManuscript(1);
+        });
+    }
+
+    $('manuscript-viewer-title').textContent=m.title;
+
+    $('manuscript-viewer-ref').textContent=
+        [
+            m.anchor,
+            m.page ? `Page ${m.page}` : ''
+        ].filter(Boolean).join(' · ');
+
+    const img=$('manuscript-viewer-image');
+
+    img.src=m.image;
+    img.alt=m.title;
+
+    $('manuscript-viewer-meta').innerHTML=`
+        ${m.heTitle
+            ? `<div class="hebrew">${esc(m.heTitle)}</div>`
+            : ''
+        }
+
+        ${m.queriedRef
+            ? `<div><b>Queried ref:</b> ${esc(m.queriedRef)}</div>`
+            : ''
+        }
+
+        ${m.anchor
+            ? `<div><b>Anchor:</b> ${esc(m.anchor)}</div>`
+            : ''
+        }
+
+        ${m.page
+            ? `<div><b>Page:</b> ${esc(m.page)}</div>`
+            : ''
+        }
+
+        ${m.description
+            ? `<p>${esc(m.description)}</p>`
+            : ''
+        }
+
+        <div class="muted">
+            ${index+1} of ${currentSefariaManuscripts.length}
+        </div>
+    `;
+
+    const original=$('manuscript-viewer-original');
+
+    if(m.image){
+        original.href=m.image;
+        original.style.display='';
+    }else{
+        original.style.display='none';
+    }
+
+    const source=$('manuscript-viewer-source');
+
+    if(m.source){
+        source.href=m.source;
+        source.style.display='';
+    }else{
+        source.style.display='none';
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function stepManuscript(delta){
+    if(!currentSefariaManuscripts.length)return;
+
+    let next=
+        currentManuscriptIndex
+        +delta;
+
+    if(next<0){
+        next=currentSefariaManuscripts.length-1;
+    }
+
+    if(next>=currentSefariaManuscripts.length){
+        next=0;
+    }
+
+    openManuscriptViewer(next);
+}
+
+function closeManuscriptViewer(){
+    const modal=$('manuscript-viewer');
+
+    if(modal){
+        modal.classList.add('hidden');
+    }
+}
 
 async function analyzeEntireSefaria(){
     if(!currentSefariaPayload || !currentSefariaRef){

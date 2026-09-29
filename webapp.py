@@ -585,12 +585,202 @@ def sefaria_related():
     try:return jsonify(ok=True,related=SefariaClient().related(request.args.get("ref","")))
     except SefariaError as exc:return _sefaria_error(exc)
 
+
+@app.get("/api/sefaria/manuscript-gallery")
+def sefaria_manuscript_gallery():
+    client = SefariaClient()
+
+    try:
+        batch = int(request.args.get("batch", "0"))
+    except ValueError:
+        batch = 0
+
+    # Broad discovery refs. Each batch scans a different slice.
+    # This remains ref-driven because Sefaria's manuscript API
+    # requires a valid textual tref.
+    seed_batches = [
+        [
+            "Genesis 1:1","Genesis 10:1","Genesis 20:1","Genesis 30:1","Genesis 40:1",
+            "Exodus 1:1","Exodus 10:1","Exodus 20:1","Exodus 30:1","Exodus 40:1",
+            "Leviticus 1:1","Leviticus 10:1","Leviticus 20:1",
+            "Numbers 1:1","Numbers 10:1","Numbers 20:1","Numbers 30:1",
+            "Deuteronomy 1:1","Deuteronomy 10:1","Deuteronomy 20:1","Deuteronomy 30:1",
+        ],
+        [
+            "Joshua 1:1","Joshua 10:1","Joshua 20:1",
+            "Judges 1:1","Judges 10:1","Judges 20:1",
+            "I Samuel 1:1","I Samuel 10:1","I Samuel 20:1","I Samuel 30:1",
+            "II Samuel 1:1","II Samuel 10:1","II Samuel 20:1",
+            "I Kings 1:1","I Kings 10:1","I Kings 20:1",
+            "II Kings 1:1","II Kings 10:1","II Kings 20:1",
+        ],
+        [
+            "Isaiah 1:1","Isaiah 10:1","Isaiah 20:1","Isaiah 30:1","Isaiah 40:1","Isaiah 50:1","Isaiah 60:1",
+            "Jeremiah 1:1","Jeremiah 10:1","Jeremiah 20:1","Jeremiah 30:1","Jeremiah 40:1","Jeremiah 50:1",
+            "Ezekiel 1:1","Ezekiel 10:1","Ezekiel 20:1","Ezekiel 30:1","Ezekiel 40:1",
+        ],
+        [
+            "Hosea 1:1","Joel 1:1","Amos 1:1","Obadiah 1:1","Jonah 1:1","Micah 1:1",
+            "Nahum 1:1","Habakkuk 1:1","Zephaniah 1:1","Haggai 1:1","Zechariah 1:1","Malachi 1:1",
+            "Psalms 1:1","Psalms 10:1","Psalms 20:1","Psalms 30:1","Psalms 40:1",
+            "Psalms 50:1","Psalms 60:1","Psalms 70:1","Psalms 80:1","Psalms 90:1",
+            "Psalms 100:1","Psalms 110:1","Psalms 120:1","Psalms 130:1","Psalms 140:1",
+        ],
+        [
+            "Proverbs 1:1","Proverbs 10:1","Proverbs 20:1","Proverbs 30:1",
+            "Job 1:1","Job 10:1","Job 20:1","Job 30:1","Job 40:1",
+            "Song of Songs 1:1","Ruth 1:1","Lamentations 1:1",
+            "Ecclesiastes 1:1","Esther 1:1","Esther 4:14","Esther 5:14",
+            "Daniel 1:1","Daniel 6:1","Ezra 1:1","Nehemiah 1:1",
+            "I Chronicles 1:1","I Chronicles 10:1","II Chronicles 1:1","II Chronicles 20:1",
+        ],
+    ]
+
+    batch = max(0, min(batch, len(seed_batches) - 1))
+    seed_refs = seed_batches[batch]
+
+    manuscripts = []
+    seen = set()
+    errors = []
+
+    for ref in seed_refs:
+        try:
+            payload = client.manuscripts(ref)
+        except SefariaError as exc:
+            errors.append({"reference": ref, "error": str(exc)})
+            continue
+
+        if not isinstance(payload, list):
+            continue
+
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+
+            manuscript = item.get("manuscript") or {}
+            slug = (
+                item.get("manuscript_slug")
+                or manuscript.get("slug")
+                or ""
+            )
+            page_id = str(item.get("page_id") or "")
+            image_url = item.get("image_url") or ""
+
+            key = (slug, page_id, image_url)
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            out = dict(item)
+            out["_quarries_seed_ref"] = ref
+            manuscripts.append(out)
+
+    manuscripts.sort(
+        key=lambda x: (
+            str(
+                (x.get("manuscript") or {}).get("title")
+                or x.get("manuscript_slug")
+                or ""
+            ).lower(),
+            str(x.get("page_id") or ""),
+        )
+    )
+
+    return jsonify(
+        ok=True,
+        batch=batch,
+        batch_count=len(seed_batches),
+        has_more=batch < len(seed_batches) - 1,
+        seed_refs=seed_refs,
+        manuscripts=manuscripts,
+        count=len(manuscripts),
+        errors=errors,
+    )
+
+
 @app.get("/api/sefaria/manuscripts")
 def sefaria_manuscripts():
+    tref=(request.args.get("ref") or "").strip()
+
     try:
-        data=SefariaClient().manuscripts(request.args.get("ref",""))
-        return jsonify(ok=True,manuscripts=data,image_urls=manuscript_image_urls(data))
-    except SefariaError as exc:return _sefaria_error(exc)
+        client=SefariaClient()
+
+        # ----------------------------------------------------
+        # For Sheets, query manuscript witnesses for each
+        # source ref instead of asking Sefaria for "Sheet ####".
+        # ----------------------------------------------------
+        if tref.lower().startswith("sheet "):
+            sheet=client.text(tref)
+            segments=sheet_segments(sheet)
+
+            refs=[]
+            seen_refs=set()
+
+            for seg in segments:
+                ref=(seg.get("reference") or "").strip()
+
+                if ref and ref not in seen_refs:
+                    seen_refs.add(ref)
+                    refs.append(ref)
+
+            manuscripts=[]
+            seen_images=set()
+
+            # Keep this bounded so a giant sheet does not create
+            # hundreds of network requests at once.
+            for ref in refs[:60]:
+                try:
+                    payload=client.manuscripts(ref)
+                except SefariaError:
+                    continue
+
+                if not isinstance(payload,list):
+                    continue
+
+                for item in payload:
+                    if not isinstance(item,dict):
+                        continue
+
+                    image=(item.get("image_url") or "").strip()
+                    page_id=str(item.get("page_id") or "")
+
+                    key=image or (
+                        str(item.get("manuscript_slug") or "")
+                        + "|"
+                        + page_id
+                    )
+
+                    if not key or key in seen_images:
+                        continue
+
+                    seen_images.add(key)
+
+                    out=dict(item)
+                    out["_quarries_source_ref"]=ref
+                    manuscripts.append(out)
+
+            return jsonify(
+                ok=True,
+                reference=tref,
+                source_refs=refs,
+                manuscripts=manuscripts,
+                image_urls=manuscript_image_urls(manuscripts),
+            )
+
+        data=client.manuscripts(tref)
+
+        return jsonify(
+            ok=True,
+            reference=tref,
+            source_refs=[tref],
+            manuscripts=data,
+            image_urls=manuscript_image_urls(data),
+        )
+
+    except SefariaError as exc:
+        return _sefaria_error(exc)
 
 
 @app.post("/api/sefaria/analyze")
