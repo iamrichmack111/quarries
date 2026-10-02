@@ -1,3 +1,33 @@
+# Changelog
+
+## 2026-10-01
+
+### Added
+- Added `quarries-daily` CLI for downloading and analyzing Daily Sefaria studies.
+- Added support for Daf Yomi and Tanakh Yomi daily Hebrew/Aramaic exports.
+- Added Rambam 3 Chapters calendar matching logic with broader Daily Sefaria discovery.
+- Added Hebrew-focused study ZIP exports with Quarries whole-study analysis.
+- Added dated Desktop workspaces under `~/Desktop/Quarries-Daily-YYYY-MM-DD/`.
+- Added `quarries-black-square` workflow for extracting each study ZIP into its own workspace.
+- Added automatic detection of the exported `analysis.md` file as the primary BSTM analysis source.
+- Added Codex integration for generating:
+  - `BLACK_SQUARE_RULEBOOK.md`
+  - `BLACK_SQUARE_DEFENSE.md`
+- Added BSTM rulebook prompting with transliteration, gematria, symbolic sequences, numbered laws, practical defenses, adversarial red-team sections, and defense cross-references.
+- Added Codex `workspace-write` sandbox support and `--skip-git-repo-check` for standalone Desktop study workspaces.
+
+### Changed
+- Daily Sefaria CLI now mirrors the web app's `/api/sefaria/analyze` flow.
+- Daily study output is organized into separate per-study workspaces instead of loose files.
+- BSTM processing now analyzes the exported Markdown study document rather than the entire extracted archive indiscriminately.
+
+### Fixed
+- Fixed incorrect CLI analysis endpoint usage.
+- Fixed Sefaria analysis payload shape to send `segments` directly, matching `analyzeEntireSefaria()`.
+- Fixed empty CLI script/wrapper issues.
+- Fixed Codex failures caused by untrusted non-Git workspaces.
+- Fixed Codex read-only execution by enabling workspace write access.
+
 ## v0.10.10 - 2026-09-29
 
 - Added an in-app Sefaria manuscript gallery.
