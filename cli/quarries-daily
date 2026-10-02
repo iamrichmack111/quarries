@@ -14,7 +14,19 @@ OUTDIR = Path.home() / "Desktop"
 STUDIES = [
     ("Daf Yomi", ["Daf Yomi"]),
     ("Tanakh Yomi", ["Tanakh Yomi", "Tanach Yomi", "929"]),
-    ("Rambam 3 Chapters", ["Rambam 3 Chapters", "Rambam Three Chapters", "Rambam 3"]),
+    ("Rambam", [
+        "Rambam 3 Chapters",
+        "Rambam Three Chapters",
+        "Rambam 3",
+    ]),
+    ("Mishnah", [
+        "Mishnah Yomit",
+        "Mishna Yomit",
+        "Mishnah Yomi",
+        "Mishna Yomi",
+        "Daily Mishnah",
+        "Mishnah",
+    ]),
 ]
 
 

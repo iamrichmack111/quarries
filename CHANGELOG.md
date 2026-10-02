@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-02 — Daily Mishnah + Black Square Pipeline
+
+### Added
+- Added **Mishnah** to `quarries-daily`.
+- Daily Mishnah references are discovered through the existing Sefaria calendar flow.
+- Mishnah Hebrew source text now passes through the normal Quarries analysis and ZIP export pipeline.
+- Mishnah ZIPs are recognized by `quarries-black-square` and receive their own Black Square workspace.
+
+### Changed
+- Renamed the daily **Rambam 3 Chapters** output label to **Rambam** while retaining the existing Rambam calendar aliases for source discovery.
+- `quarries-black-square` recognizes both new `Rambam` ZIP names and legacy `Rambam-3-Chapters` ZIP names.
+- Black Square validation failures now warn and continue instead of aborting the remaining daily studies.
+
+### Pipeline
+The daily workflow now supports:
+
+- Daf Yomi
+- Tanakh Yomi
+- Rambam
+- Mishnah
+
+Each extracted study is analyzed by Quarries, exported as a Hebrew study ZIP, and can then be processed into the BSTM adversarial manual, defense manual, and shared source appendices.
+
+## 2026-10-02
+
+- Replaced mixed BSTM rulebook generation with ten paired second-person adversarial commands and mechanism-focused defenses in separate manuals.
+- Centralized generation instructions in `BSTM_CODEX_PROMPT.md`; added `bstm.py` prompt rendering and output-structure validation.
+- Moved shared source discipline, lexical mismatch notes, glossary, numerical field, chronology, gematria registers, and references into one shared appendix per study.
+- Rewrote the existing Bekhorot 13 and II Chronicles 34:2–35:5 manuals under `exports/bstm-2026-10-01/`, preserving their exported sources and technical registers.
+
 ## 2026-10-01
 
 ### Added
