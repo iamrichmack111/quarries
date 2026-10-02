@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+
+import json
+import re
+import sys
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from datetime import datetime
+
+BASE = "http://127.0.0.1:8787"
+OUTDIR = Path.home() / "Desktop"
+
+STUDIES = [
+    ("Daf Yomi", ["Daf Yomi"]),
+    ("Tanakh Yomi", ["Tanakh Yomi", "Tanach Yomi", "929"]),
+    ("Rambam 3 Chapters", ["Rambam 3 Chapters", "Rambam Three Chapters", "Rambam 3"]),
+]
+
+
+def request(method, path, data=None, raw=False):
+    url = BASE + path
+    headers = {"Accept": "*/*", "User-Agent": "Quarries-CLI"}
+
+    body = None
+    if data is not None:
+        body = json.dumps(data).encode()
+        headers["Content-Type"] = "application/json"
+
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(req, timeout=600) as r:
+            content = r.read()
+            if raw:
+                return content
+            return json.loads(content.decode())
+    except urllib.error.HTTPError as e:
+        print(f"HTTP {e.code}: {url}", file=sys.stderr)
+        print(e.read().decode(errors="replace"), file=sys.stderr)
+        raise
+
+
+def get(path):
+    return request("GET", path)
+
+
+def post(path, data):
+    return request("POST", path, data)
+
+
+def walk(obj):
+    if isinstance(obj, dict):
+        yield obj
+        for v in obj.values():
+            yield from walk(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from walk(v)
+
+
+def find_calendar_ref(calendar, aliases):
+    for alias in aliases:
+        a = alias.lower()
+
+        for item in walk(calendar):
+            if not isinstance(item, dict):
+                continue
+
+            text = " ".join(
+                str(item.get(k, ""))
+                for k in (
+                    "title",
+                    "displayValue",
+                    "display_value",
+                    "name",
+                    "category",
+                    "description",
+                )
+            ).lower()
+
+            if a in text:
+                ref = (
+                    item.get("ref")
+                    or item.get("reference")
+                    or item.get("sefariaRef")
+                    or item.get("sefaria_ref")
+                )
+
+                if ref:
+                    return str(ref)
+
+    return None
+
+
+def safe(s):
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", s).strip("-")
+
+
+def fetch_text(ref):
+    q = urllib.parse.quote(ref, safe="")
+    return get(f"/api/sefaria/text?ref={q}")
+
+
+def hebrew_segments(source):
+    out = []
+
+    for seg in source.get("segments", []):
+        if not isinstance(seg, dict):
+            continue
+
+        heb = str(seg.get("hebrew") or seg.get("he") or "")
+
+        if not heb.strip():
+            continue
+
+        x = dict(seg)
+        x["hebrew"] = heb
+        x["english"] = ""
+        out.append(x)
+
+    return out
+
+
+def run_study(label, ref):
+    print()
+    print("=" * 60)
+    print(label.upper())
+    print("=" * 60)
+    print("Ref:", ref)
+
+    source = fetch_text(ref)
+    segments = hebrew_segments(source)
+
+    if not segments:
+        raise RuntimeError("No Hebrew/Aramaic segments found")
+
+    print("Hebrew segments:", len(segments))
+    print("Analyzing...")
+
+    analysis = post(
+        "/api/sefaria/analyze",
+        {
+            "reference": ref,
+            "title": source.get("title", ref),
+            "content_type": source.get("content_type", "text"),
+            "segments": segments,
+            "limit": 1000,
+        },
+    )
+
+    print("Words analyzed:", analysis.get("word_count", "?"))
+
+    print("Building ZIP...")
+
+    data = request(
+        "POST",
+        "/api/sefaria/export",
+        {
+            "reference": ref,
+            "analysis": analysis,
+            "include_images": True,
+        },
+        raw=True,
+    )
+
+    if not data.startswith(b"PK"):
+        raise RuntimeError("Export was not a ZIP")
+
+    stamp = datetime.now().strftime("%Y-%m-%d")
+
+    filename = (
+        f"quarries-{stamp}-"
+        f"{safe(label)}-"
+        f"{safe(ref)}-HEBREW.zip"
+    )
+
+    outfile = OUTDIR / filename
+    outfile.write_bytes(data)
+
+    print("Saved:", outfile)
+    return outfile
+
+
+def main():
+    OUTDIR.mkdir(parents=True, exist_ok=True)
+
+    print()
+    print("QUARRIES DAILY HEBREW")
+    print("=====================")
+    print("Saving to:", OUTDIR)
+
+    cal = get("/api/sefaria/calendars")
+
+    if isinstance(cal, dict):
+        calendar = cal.get("calendar", cal)
+    else:
+        calendar = cal
+
+    completed = 0
+
+    for label, aliases in STUDIES:
+        ref = find_calendar_ref(calendar, aliases)
+
+        if not ref:
+            print()
+            print(f"NOT FOUND: {label}")
+            continue
+
+        try:
+            run_study(label, ref)
+            completed += 1
+        except Exception as e:
+            print(f"FAILED {label}: {e}", file=sys.stderr)
+
+    print()
+    print("=====================")
+    print(f"Completed: {completed}/{len(STUDIES)}")
+    print("Desktop:", OUTDIR)
+
+
+if __name__ == "__main__":
+    main()

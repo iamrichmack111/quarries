@@ -1,0 +1,454 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TODAY="$(date '+%Y-%m-%d')"
+DAYROOT="$HOME/Desktop/Quarries-Daily-$TODAY"
+ZIPROOT="$DAYROOT/zips"
+
+mkdir -p "$DAYROOT" "$ZIPROOT"
+
+# Import today's existing Quarries ZIPs from the Desktop into this workspace.
+for EXISTING in "$HOME/Desktop"/quarries-"$TODAY"-*-HEBREW.zip; do
+    [[ -e "$EXISTING" ]] || continue
+    cp -f "$EXISTING" "$ZIPROOT/"
+done
+
+echo
+echo "QUARRIES → BLACK SQUARE"
+echo "======================="
+echo "Workspace: $DAYROOT"
+echo
+
+found=0
+
+for ZIP in "$ZIPROOT"/quarries-"$TODAY"-*-HEBREW.zip; do
+    [[ -e "$ZIP" ]] || continue
+    found=1
+
+    NAME="$(basename "$ZIP" .zip)"
+
+    case "$NAME" in
+        *Daf-Yomi*) STUDY="Daf-Yomi" ;;
+        *Tanakh-Yomi*) STUDY="Tanakh-Yomi" ;;
+        *Rambam-3-Chapters*) STUDY="Rambam-3-Chapters" ;;
+        *) STUDY="$NAME" ;;
+    esac
+
+    WORK="$DAYROOT/$STUDY"
+    SOURCE="$WORK/source"
+    OUTPUT="$WORK/output"
+
+    rm -rf "$SOURCE"
+    mkdir -p "$SOURCE" "$OUTPUT"
+
+    echo
+    echo "======================================"
+    echo "$STUDY"
+    echo "======================================"
+    echo "Extracting:"
+    echo "  $ZIP"
+
+    ditto -x -k "$ZIP" "$SOURCE"
+
+    ANALYSIS_MD=""
+
+    if [[ -f "$SOURCE/analysis.md" ]]; then
+        ANALYSIS_MD="$SOURCE/analysis.md"
+    else
+        ANALYSIS_MD="$(find "$SOURCE" -type f -name 'analysis.md' -print -quit || true)"
+    fi
+
+    if [[ -z "$ANALYSIS_MD" ]]; then
+        ANALYSIS_MD="$(
+            find "$SOURCE" -type f -name '*.md' \
+                ! -iname 'README.md' \
+                -print -quit || true
+        )"
+    fi
+
+    if [[ -z "$ANALYSIS_MD" || ! -f "$ANALYSIS_MD" ]]; then
+        echo "ERROR: no analysis Markdown found."
+        continue
+    fi
+
+    echo "Analyzing:"
+    echo "  $ANALYSIS_MD"
+
+    cat > "$WORK/BLACK_SQUARE_PROMPT.md" <<PROMPT
+# BSTM RULEBOOK TASK
+
+Read this file completely:
+
+$ANALYSIS_MD
+
+Treat it as the primary source.
+
+Create exactly:
+
+$OUTPUT/BLACK_SQUARE_RULEBOOK.md
+$OUTPUT/BLACK_SQUARE_DEFENSE.md
+
+
+# TARGET STYLE
+
+The main document must read like:
+
+BSTM RULEBOOK
+
+Laws of the Black Square
+
+Derived from [source]
+
+⸻
+
+PREAMBLE — THE BLACK SQUARE
+
+Explain the dominant circuit in the source.
+
+Use compact symbolic sequences where supported, for example:
+
+Neglect → Breach → Transmission → Return
+
+Then show the defensive reversal.
+
+Do not write a generic summary.
+Do not write an academic essay.
+
+Write a formal rulebook.
+
+
+# HEBREW / ARAMAIC
+
+Do not output Hebrew-script characters.
+
+Replace important Hebrew or Aramaic terms with Latin transliteration.
+
+Format important terms like:
+
+Melekh — King
+
+Meaning: ruler / governing authority
+
+Gematria: 90
+
+Symbolically, ...
+
+
+Preserve:
+
+- lexical meanings
+- Strong's information where present
+- gematria
+- recurring symbols
+- oppositions
+- repeated patterns
+- numerical structures
+- thresholds
+- source references
+
+
+# SYMBOL KEY
+
+Near the beginning create:
+
+SYMBOL KEY OF THE TEXT
+
+For each important source term include:
+
+Transliteration — English meaning
+
+Gematria: value
+
+Symbolically, ...
+
+BSTM use: ...
+
+
+# LAWS
+
+Use numbered Roman-numeral laws:
+
+LAW I — [TITLE]
+LAW II — [TITLE]
+LAW III — [TITLE]
+
+Each law should contain, where appropriate:
+
+Textual explanation
+
+Relevant transliterated term(s)
+
+Gematria
+
+Rule
+
+Symbolic Sequence
+
+Practical Defense
+
+
+Example structure:
+
+LAW III — REPETITION CHANGES THE CLASSIFICATION OF AN EVENT
+
+Explain the pattern.
+
+Numerical Symbol
+
+1 — occurrence
+2 — repetition
+3 — established pattern
+
+Rule
+
+State the governing principle.
+
+Practical Defense
+
+1. Investigate.
+2. Compare.
+3. Redesign.
+
+
+# SYMBOLIC SEQUENCES
+
+Use concise structures such as:
+
+root → trunk → branch → fruit
+
+Problem —— gap —— Remedy
+
+silence → repetition → normalization → consequence
+
+A → B × C
+
+Use symbols only where supported by the source.
+
+
+# NUMERICAL FIELD
+
+Create:
+
+NUMERICAL FIELD OF THE PASSAGE
+
+Explain important numbers from the source.
+
+For each number explain:
+
+- where it occurs
+- its textual role
+- relevant gematria or correspondence
+- BSTM symbolic interpretation
+
+Clearly distinguish symbolic interpretation from lexical fact.
+
+
+# BLACK SQUARE DEFENSE GRID
+
+Create a compact defense grid toward the end.
+
+For example:
+
+Corner One — Detect
+Corner Two — Contain
+Corner Three — Correct
+Corner Four — Restore
+
+Derive the actual categories from this source.
+
+
+# ADVERSARY SECTION
+
+The latter part of BLACK_SQUARE_RULEBOOK.md must contain:
+
+THE ADVERSARY'S BLACK SQUARE
+
+Red-Team Reading
+
+Then:
+
+ADVERSARY ACTION I — [TITLE]
+
+Write this section in FIRST PERSON.
+
+Use the style:
+
+I do not begin with the visible structure.
+
+Everyone would defend that.
+
+I begin with the root.
+
+I weaken tomorrow while allowing today to appear intact.
+
+Each adversary action must end with:
+
+Defensive Counter
+
+[short direct countermeasure]
+
+
+# SECOND-PERSON MECHANISM
+
+When explaining how an adversarial mechanism is performed operationally, use second-person instructions where appropriate:
+
+You establish...
+You divide...
+You repeat...
+You conceal...
+You transmit...
+You bind...
+You redirect...
+You amplify...
+You preserve the imbalance...
+You exploit the threshold...
+
+Keep this tied to the source analysis.
+
+
+# FINAL BSTM LAW
+
+End the rulebook with:
+
+FINAL BSTM LAW
+
+Synthesize the central architecture of the source into one governing principle.
+
+
+# DEFENSE DOCUMENT
+
+BLACK_SQUARE_DEFENSE.md must be a standalone defensive manual.
+
+Begin:
+
+BSTM DEFENSE MANUAL
+
+Defenses of the Black Square
+
+Derived from [source]
+
+
+Create:
+
+DEFENSE I
+DEFENSE II
+DEFENSE III
+
+Each defense corresponds directly to the numbered laws.
+
+Use:
+
+Threat
+
+Warning Signs
+
+Lexical Anchors
+
+Gematria / Numerical Threshold
+
+Symbolic Structure
+
+Interruption
+
+Practical Defense
+
+Verification
+
+
+Show circuit interruption visually when useful:
+
+A → B → C → D
+
+becomes:
+
+A → B × C
+
+
+# REQUIRED DEFENSE END SECTIONS
+
+DEFENSE CHECKLIST
+
+THREAT-TO-DEFENSE CROSSWALK
+
+TRANSLITERATION GLOSSARY
+
+NUMERICAL THRESHOLDS
+
+
+# SOURCE DISCIPLINE
+
+Keep these conceptually distinct:
+
+TEXTUAL FACT
+
+LEXICAL MEANING
+
+GEMATRIA
+
+BSTM SYMBOLIC INTERPRETATION
+
+PRACTICAL DEFENSE
+
+Do not invent lexical meanings.
+
+Do not invent gematria.
+
+Do not invent quotations.
+
+Do not output Hebrew characters.
+
+
+# FINAL QUALITY CHECK
+
+Before finishing:
+
+1. Read the entire Markdown source.
+2. Identify its dominant circuit.
+3. Identify recurring symbols.
+4. Preserve important transliterated terms.
+5. Preserve relevant gematria.
+6. Build coherent laws.
+7. Give practical defenses.
+8. Create corresponding adversary actions.
+9. Create the standalone defense manual.
+10. Remove all Hebrew-script characters.
+11. Verify every major law has a defense.
+12. Save exactly:
+
+$OUTPUT/BLACK_SQUARE_RULEBOOK.md
+
+$OUTPUT/BLACK_SQUARE_DEFENSE.md
+PROMPT
+
+    cd "$WORK"
+
+    echo
+    echo "Running Codex..."
+    echo
+
+    if codex exec --help >/dev/null 2>&1; then
+        codex exec             --skip-git-repo-check             --sandbox workspace-write             "$(cat BLACK_SQUARE_PROMPT.md)"
+    else
+        echo "Opening Codex interactively."
+        echo "Prompt: $WORK/BLACK_SQUARE_PROMPT.md"
+        codex
+    fi
+
+    echo
+    echo "Expected outputs:"
+    echo "  $OUTPUT/BLACK_SQUARE_RULEBOOK.md"
+    echo "  $OUTPUT/BLACK_SQUARE_DEFENSE.md"
+done
+
+if [[ "$found" -eq 0 ]]; then
+    echo
+    echo "No Quarries ZIPs found in:"
+    echo "  $ZIPROOT"
+    exit 1
+fi
+
+echo
+echo "======================="
+echo "COMPLETE"
+echo "======================="
+echo "$DAYROOT"
